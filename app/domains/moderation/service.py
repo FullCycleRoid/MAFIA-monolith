@@ -2,7 +2,9 @@
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
 
-from app.domains.moderation.entities import Ban, Restriction, ModeratorAction, BanReason, BanType, RestrictionType, Warning
+from app.domains.game.repository import kick_player
+from app.domains.moderation.entities import Restriction, ModeratorAction, Ban, BanReason, BanType, RestrictionType
+from app.domains.voice.repository import disconnect_user
 
 
 class ModerationService:
@@ -333,12 +335,10 @@ class ModerationService:
 
     async def _kick_user_from_games(self, user_id: str):
         """Выкинуть пользователя из активных игр"""
-        from app.domains.game.service import kick_player
-        from app.domains.voice.service import disconnect_user
 
         # Находим активные игры пользователя
-        # await kick_player(user_id)
-        # await disconnect_user(user_id)
+        await kick_player(user_id)
+        await disconnect_user(user_id)
         pass
 
     async def _notify_user_ban(self, user_id: str, ban: Ban):

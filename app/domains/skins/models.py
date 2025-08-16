@@ -1,9 +1,8 @@
 # app/domains/skins/models.py
-from sqlalchemy import JSON, Boolean, DateTime, Integer, String
+from sqlalchemy import String, Integer, Boolean, DateTime, JSON
 from sqlalchemy.orm import Mapped, mapped_column
-
-from app.shared.database.mixins import TimestampMixin
 from app.shared.models.base import Base
+from app.shared.database.mixins import TimestampMixin
 
 
 class SkinCatalog(Base, TimestampMixin):

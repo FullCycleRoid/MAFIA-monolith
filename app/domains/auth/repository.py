@@ -25,3 +25,48 @@ async def create_user(user_data: dict):
         await db.commit()
         await db.refresh(new_user)
         return new_user
+
+async def update_linguistic_rating(user_id: str, language: str, score: int):
+    """Обновление лингвистического рейтинга"""
+    from app.domains.auth.models import User
+
+    async with get_db() as db:
+        result = await db.execute(
+            select(User).filter(User.id == user_id)
+        )
+        user = result.scalar_one_or_none()
+
+        if user:
+            if not hasattr(user, 'linguistic_rating'):
+                user.linguistic_rating = {}
+
+            # Вычисляем средний рейтинг
+            current_ratings = user.linguistic_rating.get(language, [])
+            current_ratings.append(score)
+            # Храним последние 10 оценок
+            if len(current_ratings) > 10:
+                current_ratings = current_ratings[-10:]
+
+            avg_rating = sum(current_ratings) / len(current_ratings)
+            user.linguistic_rating[language] = avg_rating
+
+            await db.commit()
+
+
+async def add_purchased_language(user_id: str, language: str):
+    """Добавление купленного языка"""
+    from app.domains.auth.models import User
+
+    async with get_db() as db:
+        result = await db.execute(
+            select(User).filter(User.id == user_id)
+        )
+        user = result.scalar_one_or_none()
+
+        if user:
+            if not hasattr(user, 'purchased_languages'):
+                user.purchased_languages = []
+
+            if language not in user.purchased_languages:
+                user.purchased_languages.append(language)
+                await db.commit()

@@ -1,5 +1,5 @@
 # app/domains/voice/repository.py
-from sqlalchemy import select, update
+from sqlalchemy import update
 
 from app.core.database import get_db
 
@@ -11,7 +11,9 @@ async def disconnect_user(user_id: str):
     async with get_db() as db:
         # Находим активные участия
         result = await db.execute(
-            select(Participant).filter(Participant.user_id == user_id)
+            select(Participant).filter(
+                Participant.user_id == user_id
+            )
         )
         participants = result.scalars().all()
 

@@ -1,9 +1,8 @@
 # app / domains / social / models.py
-from sqlalchemy import JSON, DateTime, Integer, String
+from sqlalchemy import String, Integer, DateTime, JSON
 from sqlalchemy.orm import Mapped, mapped_column
-
-from app.shared.database.mixins import TimestampMixin
 from app.shared.models.base import Base
+from app.shared.database.mixins import TimestampMixin
 
 
 class SocialInteractionRecord(Base, TimestampMixin):

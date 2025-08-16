@@ -1,9 +1,7 @@
 # app/domains/social/repository.py
+from typing import List, Dict, Optional
+from sqlalchemy import select, and_
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
-
-from sqlalchemy import and_, select
-
 from app.core.database import get_db
 from app.domains.social.models import SocialInteractionRecord, UserStats
 
@@ -12,13 +10,13 @@ async def save_interaction(interaction_data: Dict) -> SocialInteractionRecord:
     """Сохранение социального взаимодействия"""
     async with get_db() as db:
         interaction = SocialInteractionRecord(
-            id=interaction_data["interaction_id"],
-            from_user=interaction_data["from_user"],
-            to_user=interaction_data["to_user"],
-            type=interaction_data["type"],
-            game_id=interaction_data.get("game_id"),
-            timestamp=interaction_data["timestamp"],
-            data=interaction_data.get("data", {}),
+            id=interaction_data['interaction_id'],
+            from_user=interaction_data['from_user'],
+            to_user=interaction_data['to_user'],
+            type=interaction_data['type'],
+            game_id=interaction_data.get('game_id'),
+            timestamp=interaction_data['timestamp'],
+            data=interaction_data.get('data', {})
         )
         db.add(interaction)
         await db.commit()
@@ -48,9 +46,7 @@ async def update_user_stats(user_id: str, field: str, increment: int = 1):
         await db.commit()
 
 
-async def get_recent_reports(
-    user_id: str, hours: int = 24
-) -> List[SocialInteractionRecord]:
+async def get_recent_reports(user_id: str, hours: int = 24) -> List[SocialInteractionRecord]:
     """Получение недавних жалоб на пользователя"""
     async with get_db() as db:
         cutoff_time = datetime.utcnow() - timedelta(hours=hours)
@@ -59,7 +55,7 @@ async def get_recent_reports(
                 and_(
                     SocialInteractionRecord.to_user == user_id,
                     SocialInteractionRecord.type == "report",
-                    SocialInteractionRecord.timestamp > cutoff_time,
+                    SocialInteractionRecord.timestamp > cutoff_time
                 )
             )
         )
