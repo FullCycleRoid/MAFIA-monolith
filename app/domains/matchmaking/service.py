@@ -1,11 +1,12 @@
 # app/domains/matchmaking/service.py
-from collections import defaultdict
+from typing import List, Optional, Dict
 from datetime import datetime
-from typing import Dict, List, Optional
+from collections import defaultdict
 
-from app.domains.matchmaking.entities import (FormingLobby, LobbySettings,
-                                              MatchmakingCriteria,
-                                              MatchmakingMode, QueuePlayer)
+from app.domains.matchmaking.entities import (
+    MatchmakingMode, QueuePlayer, MatchmakingCriteria, LobbySettings,
+    FormingLobby
+)
 
 
 class MatchmakingQueue:
@@ -19,10 +20,7 @@ class MatchmakingQueue:
     async def add_player(self, player: QueuePlayer) -> str:
         """Добавление игрока в очередь"""
         # Проверка бана
-        if (
-            player.profile.banned_until
-            and player.profile.banned_until > datetime.utcnow()
-        ):
+        if player.profile.banned_until and player.profile.banned_until > datetime.utcnow():
             raise ValueError(f"Player banned until {player.profile.banned_until}")
 
         # Удаляем из предыдущей очереди если есть
@@ -47,13 +45,12 @@ class MatchmakingQueue:
             return False
 
         mode = self.player_to_queue[user_id]
-        self.queues[mode] = [
-            p for p in self.queues[mode] if p.profile.user_id != user_id
-        ]
+        self.queues[mode] = [p for p in self.queues[mode]
+                             if p.profile.user_id != user_id]
         del self.player_to_queue[user_id]
         return True
 
-    async def _try_form_match(self, mode: MatchmakingMode) -> Optional["FormingLobby"]:
+    async def _try_form_match(self, mode: MatchmakingMode) -> Optional['FormingLobby']:
         """Попытка сформировать матч"""
         queue = self.queues[mode]
 
@@ -69,21 +66,23 @@ class MatchmakingQueue:
             if len(players) >= criteria.min_players:
                 # Проверяем рейтинг
                 compatible_players = self._filter_by_rating(
-                    players, criteria.rating_tolerance
+                    players,
+                    criteria.rating_tolerance
                 )
 
                 if len(compatible_players) >= criteria.min_players:
                     # Формируем лобби
-                    selected = compatible_players[
-                        : min(criteria.max_players, len(compatible_players))
-                    ]
+                    selected = compatible_players[:min(
+                        criteria.max_players,
+                        len(compatible_players)
+                    )]
 
                     lobby = FormingLobby(
                         lobby_id=self._generate_lobby_id(),
                         mode=mode,
                         players=selected,
                         language=lang,
-                        created_at=datetime.utcnow(),
+                        created_at=datetime.utcnow()
                     )
 
                     # Удаляем игроков из очереди
@@ -98,9 +97,7 @@ class MatchmakingQueue:
 
         return None
 
-    def _group_by_languages(
-        self, players: List[QueuePlayer]
-    ) -> Dict[str, List[QueuePlayer]]:
+    def _group_by_languages(self, players: List[QueuePlayer]) -> Dict[str, List[QueuePlayer]]:
         """Группировка игроков по языкам"""
         groups = defaultdict(list)
 
@@ -121,9 +118,8 @@ class MatchmakingQueue:
 
         return groups
 
-    def _filter_by_rating(
-        self, players: List[QueuePlayer], tolerance: int
-    ) -> List[QueuePlayer]:
+    def _filter_by_rating(self, players: List[QueuePlayer],
+                          tolerance: int) -> List[QueuePlayer]:
         """Фильтрация по рейтингу"""
         if not players:
             return []
@@ -134,14 +130,13 @@ class MatchmakingQueue:
 
         # Фильтруем по допустимому разбросу
         compatible = [
-            p for p in players if abs(p.profile.rating - median_rating) <= tolerance
+            p for p in players
+            if abs(p.profile.rating - median_rating) <= tolerance
         ]
 
         return compatible
 
-    async def _form_friends_match(
-        self, queue: List[QueuePlayer]
-    ) -> Optional["FormingLobby"]:
+    async def _form_friends_match(self, queue: List[QueuePlayer]) -> Optional['FormingLobby']:
         """Формирование матча с друзьями"""
         # Группируем по party_id
         parties = defaultdict(list)
@@ -158,7 +153,7 @@ class MatchmakingQueue:
                     players=players[:12],  # Максимум 12
                     language=players[0].preferred_languages[0],
                     created_at=datetime.utcnow(),
-                    is_private=True,
+                    is_private=True
                 )
 
                 for player in players[:12]:
@@ -168,9 +163,8 @@ class MatchmakingQueue:
 
         return None
 
-    async def _expand_criteria_for_waiting_players(
-        self, queue: List[QueuePlayer], criteria: MatchmakingCriteria
-    ):
+    async def _expand_criteria_for_waiting_players(self, queue: List[QueuePlayer],
+                                                   criteria: MatchmakingCriteria):
         """Расширение критериев для долго ожидающих"""
         now = datetime.utcnow()
 
@@ -191,7 +185,6 @@ class MatchmakingQueue:
 
     def _generate_lobby_id(self) -> str:
         import uuid
-
         return f"lobby_{uuid.uuid4().hex[:8]}"
 
 
@@ -213,15 +206,13 @@ class LobbyService:
             min_rating=min(p.profile.rating for p in lobby.players),
             max_rating=max(p.profile.rating for p in lobby.players),
             allow_spectators=not lobby.is_private,
-            voice_quality="high"
-            if any(p.profile.is_premium for p in lobby.players)
-            else "standard",
+            voice_quality="high" if any(p.profile.is_premium for p in lobby.players) else "standard"
         )
 
         return {
             "lobby_id": lobby.lobby_id,
             "players": [p.profile.user_id for p in lobby.players],
-            "settings": self.lobby_settings[lobby.lobby_id].__dict__,
+            "settings": self.lobby_settings[lobby.lobby_id].__dict__
         }
 
     async def player_ready(self, lobby_id: str, user_id: str) -> bool:
@@ -246,14 +237,13 @@ class LobbyService:
 
         # Создаем игру через game service
         from app.domains.game import service as game_service
-
         game_id = await game_service.create_game_from_lobby(
-            players=[p.profile for p in lobby.players], settings=settings
+            players=[p.profile for p in lobby.players],
+            settings=settings
         )
 
         # Создаем голосовую комнату
         from app.domains.voice import service as voice_service
-
         room_id = await voice_service.create_room(game_id)
 
         # Уведомляем игроков
@@ -275,11 +265,12 @@ class LobbyService:
                     "event": "game_started",
                     "game_id": game_id,
                     "room_id": room_id,
-                    "lobby_id": lobby_id,
-                },
+                    "lobby_id": lobby_id
+                }
             )
 
 
 # Глобальные экземпляры
 matchmaking_queue = MatchmakingQueue()
 lobby_service = LobbyService(matchmaking_queue)
+

@@ -1,4 +1,4 @@
-from . import api, events, models, service
+from . import api, service, models, events
 
 router = api.router
 handle_websocket = api.handle_websocket

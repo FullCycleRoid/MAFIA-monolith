@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from fastapi import HTTPException
-from jose import JWTError, jwt
+from jose import jwt, JWTError
 from starlette.requests import Request
 
 from app.core.config import settings
@@ -24,7 +24,7 @@ async def auth_middleware(request: Request, call_next):
             token,
             settings.JWT_SECRET,
             algorithms=[settings.JWT_ALG],
-            options={"require_exp": True},
+            options={"require_exp": True}
         )
         # Проверка срока действия
         if datetime.utcnow() > datetime.fromtimestamp(payload["exp"]):
@@ -49,3 +49,4 @@ async def locale_middleware(request: Request, call_next):
         response.headers["Content-Language"] = request.state.user["locale"]
 
     return response
+
