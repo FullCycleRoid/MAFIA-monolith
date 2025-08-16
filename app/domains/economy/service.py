@@ -1,6 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 from typing import Dict
+from eth_account import Account
 
 
 class EconomyService:

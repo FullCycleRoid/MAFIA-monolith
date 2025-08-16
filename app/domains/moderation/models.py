@@ -1,9 +1,8 @@
 # app/domains/moderation/models.py
-from sqlalchemy import JSON, DateTime, Integer, String, Text
+from sqlalchemy import String, DateTime, JSON, Text, Integer
 from sqlalchemy.orm import Mapped, mapped_column
-
-from app.shared.database.mixins import TimestampMixin
 from app.shared.models.base import Base
+from app.shared.database.mixins import TimestampMixin
 
 
 class BanRecord(Base, TimestampMixin):
@@ -52,3 +51,4 @@ class WarningRecord(Base, TimestampMixin):
     severity: Mapped[int] = mapped_column(Integer)
     issued_at: Mapped[DateTime] = mapped_column(DateTime)
     issued_by: Mapped[str] = mapped_column(String)
+    

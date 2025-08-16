@@ -1,8 +1,9 @@
-from starlette.requests import Request
+from typing import Optional
+
 from fastapi import FastAPI, WebSocket
 from starlette.middleware.cors import CORSMiddleware
 from starlette.websockets import WebSocketDisconnect
-
+from .domains import matchmaking, social, moderation
 from .core import (
     config,
     event_bus,
@@ -57,6 +58,9 @@ app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(game.router, prefix="/api/game", tags=["game"])
 app.include_router(voice.router, prefix="/api/voice", tags=["voice"])
 app.include_router(economy.router, prefix="/api/economy", tags=["economy"])
+app.include_router(matchmaking.router, prefix="/api/matchmaking", tags=["matchmaking"])
+app.include_router(social.router, prefix="/api/social", tags=["social"])
+app.include_router(moderation.router, prefix="/api/moderation", tags=["moderation"])
 
 
 # Health check
@@ -70,14 +74,26 @@ async def health():
     status = "ok" if all(services.values()) else "degraded"
     return {"status": status, "services": services}
 
-# WebSocket endpoint
+
 @app.websocket("/ws/games/{game_id}")
-async def websocket_endpoint(websocket: WebSocket, game_id: str):
-    await websocket_manager.connect(game_id, websocket)
+async def websocket_endpoint(websocket: WebSocket, game_id: str, user_id: Optional[str] = None):
+    await websocket_manager.connect(websocket, game_id=game_id, user_id=user_id)
     try:
         while True:
             data = await websocket.receive_text()
-            # Обработка входящих сообщений
-            await websocket_manager.handle_connection(game_id, websocket)
+            await websocket_manager.handle_message(websocket, data)
     except WebSocketDisconnect:
-        websocket_manager.disconnect(game_id, websocket)
+        websocket_manager.disconnect(websocket)
+
+
+# Добавить глобальный WebSocket для уведомлений:
+@app.websocket("/ws/notifications")
+async def notifications_websocket(websocket: WebSocket, user_id: str):
+    await websocket_manager.connect(websocket, user_id=user_id)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # Обработка команд от клиента (подписки и т.д.)
+            await websocket_manager.handle_message(websocket, data)
+    except WebSocketDisconnect:
+        websocket_manager.disconnect(websocket)

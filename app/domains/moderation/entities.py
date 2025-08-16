@@ -75,3 +75,4 @@ class Warning:
     reason: str
     severity: int  # 1-3, где 3 - самое серьезное
     issued_at: datetime
+
