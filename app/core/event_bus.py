@@ -1,5 +1,5 @@
+from typing import Callable, Dict, List, Any
 import asyncio
-from typing import Any, Callable, Dict, List
 
 from app.shared.utils import logger
 
@@ -20,10 +20,9 @@ class EventBus:
         try:
             # Добавить таймаут
             await asyncio.wait_for(
-                handler(event_data)
-                if asyncio.iscoroutinefunction(handler)
+                handler(event_data) if asyncio.iscoroutinefunction(handler)
                 else asyncio.to_thread(handler, event_data),
-                timeout=5.0,
+                timeout=5.0
             )
         except asyncio.TimeoutError:
             self.log.error(f"Handler timed out: {handler.__name__}")
@@ -36,10 +35,8 @@ class EventBus:
         self.subscriptions[event_name].append(handler)
         self.log.debug(f"Subscribed handler to: {event_name}")
 
-
 # Глобальный экземпляр шины событий
 event_bus = EventBus()
-
 
 def init_event_bus():
     # Инициализация шины событий

@@ -1,8 +1,7 @@
 # app/domains/game/logic.py
-from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, List
-
+from dataclasses import dataclass
 from app.shared.schemas.events import GamePhaseChanged
 
 
@@ -38,17 +37,19 @@ class PhaseConfig:
 
 PHASE_CONFIGS = {
     GamePhase.LOBBY: PhaseConfig(
-        duration_seconds=60, allowed_roles=[], voice_config={}
+        duration_seconds=60,
+        allowed_roles=[],
+        voice_config={}
     ),
     GamePhase.DAY_DISCUSSION: PhaseConfig(
         duration_seconds=180,
         allowed_roles=list(Role),
-        voice_config={role.value: True for role in Role},  # Все говорят
+        voice_config={role.value: True for role in Role}  # Все говорят
     ),
     GamePhase.DAY_VOTING: PhaseConfig(
         duration_seconds=60,
         allowed_roles=list(Role),
-        voice_config={role.value: True for role in Role},
+        voice_config={role.value: True for role in Role}
     ),
     GamePhase.NIGHT_MAFIA: PhaseConfig(
         duration_seconds=30,
@@ -58,24 +59,24 @@ PHASE_CONFIGS = {
             Role.CITIZEN.value: False,
             Role.DOCTOR.value: False,
             Role.DETECTIVE.value: False,
-            Role.PROSTITUTE.value: False,
-        },
+            Role.PROSTITUTE.value: False
+        }
     ),
     GamePhase.NIGHT_DOCTOR: PhaseConfig(
         duration_seconds=15,
         allowed_roles=[Role.DOCTOR],
-        voice_config={role.value: False for role in Role},  # Никто не говорит
+        voice_config={role.value: False for role in Role}  # Никто не говорит
     ),
     GamePhase.NIGHT_PROSTITUTE: PhaseConfig(
         duration_seconds=15,
         allowed_roles=[Role.PROSTITUTE],
-        voice_config={role.value: False for role in Role},
+        voice_config={role.value: False for role in Role}
     ),
     GamePhase.NIGHT_DETECTIVE: PhaseConfig(
         duration_seconds=15,
         allowed_roles=[Role.DETECTIVE],
-        voice_config={role.value: False for role in Role},
-    ),
+        voice_config={role.value: False for role in Role}
+    )
 }
 
 
@@ -92,7 +93,7 @@ class GameLogic:
             "roles": {},
             "day_count": 0,
             "night_actions": {},
-            "vote_results": {},
+            "vote_results": {}
         }
         return self.game_states[game_id]
 
@@ -110,14 +111,14 @@ class GameLogic:
             role_distribution = {
                 Role.MAFIA: 1,
                 Role.DOCTOR: 1,
-                Role.CITIZEN: num_players - 2,
+                Role.CITIZEN: num_players - 2
             }
         elif num_players < 10:
             role_distribution = {
                 Role.MAFIA: 2,
                 Role.DOCTOR: 1,
                 Role.DETECTIVE: 1,
-                Role.CITIZEN: num_players - 4,
+                Role.CITIZEN: num_players - 4
             }
         else:
             role_distribution = {
@@ -125,12 +126,11 @@ class GameLogic:
                 Role.DOCTOR: 1,
                 Role.DETECTIVE: 1,
                 Role.PROSTITUTE: 1,
-                Role.CITIZEN: num_players - 6,
+                Role.CITIZEN: num_players - 6
             }
 
         # Присваиваем роли случайным образом
         import random
-
         shuffled_players = random.sample(players, len(players))
 
         roles = {}
@@ -158,7 +158,7 @@ class GameLogic:
             GamePhase.NIGHT_PROSTITUTE: GamePhase.NIGHT_DETECTIVE,
             GamePhase.NIGHT_DETECTIVE: GamePhase.NIGHT_RESULTS,
             GamePhase.NIGHT_RESULTS: GamePhase.DAY_DISCUSSION,
-            GamePhase.GAME_ENDED: GamePhase.GAME_ENDED,
+            GamePhase.GAME_ENDED: GamePhase.GAME_ENDED
         }
         return transitions.get(current_phase, GamePhase.GAME_ENDED)
 
@@ -205,9 +205,8 @@ class GameLogic:
 
         return False
 
-    def process_night_action(
-        self, game_id: str, player_id: str, action: str, target_id: str
-    ) -> bool:
+    def process_night_action(self, game_id: str, player_id: str,
+                             action: str, target_id: str) -> bool:
         """Обработка ночных действий"""
         state = self.game_states.get(game_id)
         if not state:
@@ -228,7 +227,7 @@ class GameLogic:
         state["night_actions"][player_id] = {
             "action": action,
             "target": target_id,
-            "role": player_role,
+            "role": player_role
         }
 
         return True
@@ -244,7 +243,7 @@ class GameLogic:
             "killed": None,
             "healed": None,
             "blocked": None,
-            "investigated": None,
+            "investigated": None
         }
 
         # Проститутка блокирует первой
@@ -265,7 +264,6 @@ class GameLogic:
         # Выбираем цель большинством голосов мафии
         if mafia_targets:
             from collections import Counter
-
             target_counts = Counter(mafia_targets)
             killed_player = target_counts.most_common(1)[0][0]
             results["killed"] = killed_player
@@ -286,7 +284,7 @@ class GameLogic:
                 checked_role = state["roles"].get(checked_player)
                 results["investigated"] = {
                     "player": checked_player,
-                    "is_mafia": checked_role == Role.MAFIA,
+                    "is_mafia": checked_role == Role.MAFIA
                 }
 
         # Применяем результаты
@@ -307,7 +305,10 @@ class PhaseManager:
     async def start_game(self, game_id: str, players: List[str]) -> GamePhaseChanged:
         """Начало новой игры"""
         self.logic.create_game(game_id, players)
-        return GamePhaseChanged(game_id=game_id, phase=GamePhase.LOBBY.value)
+        return GamePhaseChanged(
+            game_id=game_id,
+            phase=GamePhase.LOBBY.value
+        )
 
     async def advance_phase(self, game_id: str) -> GamePhaseChanged:
         """Переход к следующей фазе"""
@@ -318,7 +319,10 @@ class PhaseManager:
             roles = self.logic.assign_roles(game_id)
             # Здесь должна быть отправка ролей игрокам
 
-        return GamePhaseChanged(game_id=game_id, phase=new_phase.value)
+        return GamePhaseChanged(
+            game_id=game_id,
+            phase=new_phase.value
+        )
 
     def get_voice_config(self, game_id: str) -> Dict[str, bool]:
         """Получение конфигурации голоса для текущей фазы"""
