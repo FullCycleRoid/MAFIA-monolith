@@ -3,9 +3,13 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from app.domains.matchmaking.entities import (FormingLobby, LobbySettings,
-                                              MatchmakingCriteria,
-                                              MatchmakingMode, QueuePlayer)
+from app.domains.matchmaking.entities import (
+    FormingLobby,
+    LobbySettings,
+    MatchmakingCriteria,
+    MatchmakingMode,
+    QueuePlayer,
+)
 
 
 class MatchmakingQueue:

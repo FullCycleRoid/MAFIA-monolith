@@ -1,0 +1,149 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - mafia_staging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: >
+      redis-server
+      --save 300 10
+      --loglevel warning
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_staging_data:/data
+    restart: unless-stopped
+    networks:
+      - mafia_staging
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+      RABBITMQ_DEFAULT_VHOST: mafia_staging
+    volumes:
+      - rabbitmq_staging_data:/var/lib/rabbitmq
+    restart: unless-stopped
+    networks:
+      - mafia_staging
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    env_file:
+      - .env.staging
+    environment:
+      ENVIRONMENT: staging
+      TON_NETWORK: testnet
+    restart: unless-stopped
+    networks:
+      - mafia_staging
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    env_file:
+      - .env.staging
+    environment:
+      ENVIRONMENT: staging
+    restart: unless-stopped
+    networks:
+      - mafia_staging
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    command: celery -A app.core.celery worker --loglevel=warning --concurrency=4
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    env_file:
+      - .env.staging
+    environment:
+      ENVIRONMENT: staging
+    restart: unless-stopped
+    networks:
+      - mafia_staging
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    command: celery -A app.core.celery beat --loglevel=warning
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/staging.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    restart: unless-stopped
+    networks:
+      - mafia_staging
+    depends_on:
+      - backend
+
+  voice-server:
+    build:
+      context: ./voice-server
+      dockerfile: Dockerfile
+    environment:
+      MEDIASOUP_WORKERS: 5
+      NODE_ENV: staging
+    restart: unless-stopped
+    networks:
+      - mafia_staging
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+networks:
+  mafia_staging:
+    driver: bridge
+
+volumes:
+  postgres_staging_data:
+  redis_staging_data:
+  rabbitmq_staging_data:

@@ -1,0 +1,185 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=en_US.utf8 --lc-ctype=en_US.utf8"
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+      - ./backup:/backup
+    restart: always
+    networks:
+      - mafia_prod
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+  redis:
+    image: redis:7-alpine
+    command: >
+      redis-server
+      --save 60 1000
+      --save 300 100
+      --save 3600 10
+      --loglevel warning
+      --maxmemory 1gb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD}
+      --appendonly yes
+      --appendfsync everysec
+    volumes:
+      - redis_prod_data:/data
+    restart: always
+    networks:
+      - mafia_prod
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+      RABBITMQ_DEFAULT_VHOST: mafia_prod
+      RABBITMQ_VM_MEMORY_HIGH_WATERMARK: 0.8
+    volumes:
+      - rabbitmq_prod_data:/var/lib/rabbitmq
+    restart: always
+    networks:
+      - mafia_prod
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+
+  backend:
+    image: ${DOCKER_REGISTRY}/mafia-backend:${VERSION:-latest}
+    env_file:
+      - .env.prod
+    environment:
+      ENVIRONMENT: prod
+      TON_NETWORK: mainnet
+    restart: always
+    networks:
+      - mafia_prod
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    deploy:
+      replicas: 4
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+
+  celery_worker:
+    image: ${DOCKER_REGISTRY}/mafia-backend:${VERSION:-latest}
+    env_file:
+      - .env.prod
+    environment:
+      ENVIRONMENT: prod
+    restart: always
+    networks:
+      - mafia_prod
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    command: celery -A app.core.celery worker --loglevel=warning --concurrency=8
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  celery_beat:
+    image: ${DOCKER_REGISTRY}/mafia-backend:${VERSION:-latest}
+    env_file:
+      - .env.prod
+    environment:
+      ENVIRONMENT: prod
+    restart: always
+    networks:
+      - mafia_prod
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    command: celery -A app.core.celery beat --loglevel=warning
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/prod.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+      - nginx_cache:/var/cache/nginx
+    restart: always
+    networks:
+      - mafia_prod
+    depends_on:
+      - backend
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+
+  voice-server:
+    image: ${DOCKER_REGISTRY}/mafia-voice:${VERSION:-latest}
+    environment:
+      MEDIASOUP_WORKERS: 10
+      NODE_ENV: production
+    restart: always
+    networks:
+      - mafia_prod
+    deploy:
+      replicas: 5
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+
+networks:
+  mafia_prod:
+    driver: overlay
+    attachable: true
+
+volumes:
+  postgres_prod_data:
+    driver: local
+  redis_prod_data:
+    driver: local
+  rabbitmq_prod_data:
+    driver: local
+  nginx_cache:
+    driver: local
