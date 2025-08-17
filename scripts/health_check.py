@@ -39,5 +39,6 @@ async def check_health():
         print(f"❌ Health check failed: {e}")
         return False
 
+
 if __name__ == "__main__":
     asyncio.run(check_health())
