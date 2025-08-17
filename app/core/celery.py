@@ -1,4 +1,5 @@
 from celery import Celery
+
 from .config import settings
 
 celery_app = Celery(
@@ -8,9 +9,10 @@ celery_app = Celery(
     include=[
         "app.tasks.game_tasks",
         "app.tasks.voice_tasks",
-        "app.tasks.economy_tasks"
-    ]
+        "app.tasks.economy_tasks",
+    ],
 )
+
 
 def init_celery():
     # Конфигурация Celery
@@ -34,3 +36,21 @@ async def check_connection() -> bool:
             return True
     except Exception:
         return False
+
+
+from celery.schedules import crontab
+
+celery_app.conf.beat_schedule = {
+    "process-withdrawals": {
+        "task": "app.tasks.withdrawal_processor.process_pending_withdrawals",
+        "schedule": crontab(minute="*/5"),  # Every 5 minutes
+    },
+    "update-token-price": {
+        "task": "app.tasks.price_updater.update_token_price",
+        "schedule": crontab(minute="*/15"),  # Every 15 minutes
+    },
+    "cleanup-old-games": {
+        "task": "app.tasks.cleanup.cleanup_old_games",
+        "schedule": crontab(hour=3, minute=0),  # Daily at 3 AM
+    },
+}

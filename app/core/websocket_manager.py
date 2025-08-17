@@ -1,7 +1,9 @@
-from fastapi import WebSocket
-from typing import Dict, List, Optional
-from app.core.event_bus import event_bus
 import json
+from typing import Dict, List, Optional
+
+from fastapi import WebSocket
+
+from app.core.event_bus import event_bus
 
 
 class WebSocketManager:
@@ -10,16 +12,17 @@ class WebSocketManager:
         self.user_connections: Dict[str, List[WebSocket]] = {}  # user_id -> websockets
         self.connection_metadata: Dict[WebSocket, Dict] = {}  # websocket -> metadata
 
-    async def connect(self, websocket: WebSocket, game_id: Optional[str] = None,
-                      user_id: Optional[str] = None):
+    async def connect(
+        self,
+        websocket: WebSocket,
+        game_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+    ):
         """Подключение клиента"""
         await websocket.accept()
 
         # Сохраняем метаданные соединения
-        self.connection_metadata[websocket] = {
-            "game_id": game_id,
-            "user_id": user_id
-        }
+        self.connection_metadata[websocket] = {"game_id": game_id, "user_id": user_id}
 
         # Добавляем в игровые соединения
         if game_id:
@@ -92,11 +95,11 @@ class WebSocketManager:
             metadata = self.connection_metadata.get(websocket, {})
 
             # Добавляем метаданные к сообщению
-            data['user_id'] = metadata.get('user_id')
-            data['game_id'] = metadata.get('game_id')
+            data["user_id"] = metadata.get("user_id")
+            data["game_id"] = metadata.get("game_id")
 
             # Публикуем событие в шину
-            event_type = data.get('type', 'message')
+            event_type = data.get("type", "message")
             await event_bus.publish(f"websocket:{event_type}", data)
 
         except json.JSONDecodeError:

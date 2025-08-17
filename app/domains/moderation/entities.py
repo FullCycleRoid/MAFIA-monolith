@@ -1,7 +1,7 @@
-from typing import Dict, Optional
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from typing import Dict, Optional
 
 
 class BanType(str, Enum):
@@ -75,4 +75,3 @@ class Warning:
     reason: str
     severity: int  # 1-3, где 3 - самое серьезное
     issued_at: datetime
-

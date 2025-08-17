@@ -1,8 +1,9 @@
-# app/domains/game/models.py 
-from sqlalchemy import String, Boolean, JSON, DateTime, Integer
+# app/domains/game/models.py
+from sqlalchemy import JSON, Boolean, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
-from app.shared.models.base import Base
+
 from app.shared.database.mixins import TimestampMixin
+from app.shared.models.base import Base
 
 
 class Game(Base, TimestampMixin):
