@@ -1,11 +1,11 @@
+import argparse
 import os
 import sys
-import argparse
 
 
 def is_text_file(filepath):
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(filepath, "r", encoding="utf-8") as f:
             f.read(1024)
         return True
     except (UnicodeDecodeError, IOError):
@@ -13,34 +13,35 @@ def is_text_file(filepath):
 
 
 def gather_files(start_dir, exclude_dirs):
-    output_path = os.path.join(start_dir, 'output.txt')
+    output_path = os.path.join(start_dir, "output.txt")
     skipped = 0
     processed = 0
 
     # Преобразуем имена исключаемых директорий в нижний регистр для case-insensitive сравнения
     exclude_dirs = [d.lower() for d in exclude_dirs]
 
-    with open(output_path, 'w', encoding='utf-8') as outfile:
+    with open(output_path, "w", encoding="utf-8") as outfile:
         for root, dirs, files in os.walk(start_dir, topdown=True):
             # Удаляем исключенные директории из списка для обхода
             dirs[:] = [
-                d for d in dirs
+                d
+                for d in dirs
                 if d.lower() not in exclude_dirs
-                   and not d.startswith('.')
-                   and not d.startswith('__')
+                and not d.startswith(".")
+                and not d.startswith("__")
             ]
 
             for filename in files:
                 filepath = os.path.join(root, filename)
 
                 # Пропускаем скрытые файлы и output.txt
-                if filename.startswith('.') or filename.lower() == 'output.txt':
+                if filename.startswith(".") or filename.lower() == "output.txt":
                     skipped += 1
                     continue
 
                 if is_text_file(filepath):
                     try:
-                        with open(filepath, 'r', encoding='utf-8') as infile:
+                        with open(filepath, "r", encoding="utf-8") as infile:
                             content = infile.read()
 
                         rel_path = os.path.relpath(filepath, start_dir)
@@ -60,16 +61,27 @@ def gather_files(start_dir, exclude_dirs):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Собирает содержимое всех текстовых файлов в output.txt')
-    parser.add_argument('directory', nargs='?', default=os.getcwd(),
-                        help='Целевая директория (по умолчанию: текущая)')
-    parser.add_argument('--exclude', '-e', action='append', default=[],
-                        help='Директории для исключения (можно указывать несколько раз)')
+    parser = argparse.ArgumentParser(
+        description="Собирает содержимое всех текстовых файлов в output.txt"
+    )
+    parser.add_argument(
+        "directory",
+        nargs="?",
+        default=os.getcwd(),
+        help="Целевая директория (по умолчанию: текущая)",
+    )
+    parser.add_argument(
+        "--exclude",
+        "-e",
+        action="append",
+        default=[],
+        help="Директории для исключения (можно указывать несколько раз)",
+    )
 
     args = parser.parse_args()
 
     # Стандартные исключения + пользовательские
-    default_excludes = ['venv', '__pycache__', '.git', 'node_modules', 'build']
+    default_excludes = ["venv", "__pycache__", ".git", "node_modules", "build"]
     exclude_dirs = list(set(default_excludes + args.exclude))
 
     print(f"Исключаемые директории: {', '.join(exclude_dirs)}")

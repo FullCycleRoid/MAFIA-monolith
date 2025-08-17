@@ -1,8 +1,10 @@
 # app/domains/auth/models.py
-from sqlalchemy import String, Boolean, BigInteger, Integer, Float, JSON, DateTime
+from sqlalchemy import (JSON, BigInteger, Boolean, DateTime, Float, Integer,
+                        String)
 from sqlalchemy.orm import Mapped, mapped_column
-from app.shared.models.base import Base
+
 from app.shared.database.mixins import TimestampMixin
+from app.shared.models.base import Base
 
 
 class User(Base, TimestampMixin):

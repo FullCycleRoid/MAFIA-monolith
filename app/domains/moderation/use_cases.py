@@ -23,9 +23,7 @@ async def check_can_send_gifts(user_id: str) -> bool:
 async def auto_moderate_content(user_id: str, content: str, content_type: str) -> bool:
     """Автоматическая модерация контента"""
     result = await moderation_service.auto_moderate_message(
-        user_id=user_id,
-        message=content,
-        context={"type": content_type}
+        user_id=user_id, message=content, context={"type": content_type}
     )
 
     return result is None  # True если контент прошел модерацию

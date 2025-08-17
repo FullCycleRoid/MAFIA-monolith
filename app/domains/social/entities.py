@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 
 class InteractionType(str, Enum):
@@ -58,4 +58,3 @@ class UserSocialStats:
     def __post_init__(self):
         if self.linguistic_ratings is None:
             self.linguistic_ratings = {}
-

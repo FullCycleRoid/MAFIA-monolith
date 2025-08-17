@@ -1,10 +1,10 @@
 import asyncio
 
 import httpx
+
 from app.core.config import settings
 from app.shared.schemas.events import VoiceMutePlayer
 from app.shared.utils.logger import get_logger
-
 
 logger = get_logger(__name__)
 
@@ -20,8 +20,7 @@ class RoomManager:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{settings.MEDIASOUP_URL}/room",
-                    json={"game_id": game_id}
+                    f"{settings.MEDIASOUP_URL}/room", json={"game_id": game_id}
                 )
                 response.raise_for_status()
                 room_id = response.json()["room_id"]
@@ -35,8 +34,7 @@ class RoomManager:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{settings.MEDIASOUP_URL}/command",
-                    json=command.dict()
+                    f"{settings.MEDIASOUP_URL}/command", json=command.dict()
                 )
                 response.raise_for_status()
         except Exception as e:
@@ -46,8 +44,7 @@ class RoomManager:
     async def apply_commands(self, commands: list[VoiceMutePlayer]):
         try:
             async with httpx.AsyncClient(
-                    timeout=5.0,
-                    limits=httpx.Limits(max_connections=50)
+                timeout=5.0, limits=httpx.Limits(max_connections=50)
             ) as client:
                 # Группировка команд по комнатам
                 commands_by_room = {}
@@ -62,7 +59,7 @@ class RoomManager:
                     tasks.append(
                         client.post(
                             f"{settings.MEDIASOUP_URL}/batch-command",
-                            json={"room_id": room_id, "commands": room_commands}
+                            json={"room_id": room_id, "commands": room_commands},
                         )
                     )
 
