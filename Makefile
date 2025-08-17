@@ -6,7 +6,7 @@ ENVIRONMENT ?= local
 VERSION ?= latest
 DOCKER_REGISTRY ?= your-registry.com
 PYTHON := python3
-COMPOSE := docker-compose
+COMPOSE := docker compose
 COMPOSE_FILE := docker-compose.$(ENVIRONMENT).yml
 
 # Colors for output
@@ -46,16 +46,24 @@ install-ton-tools: ## Install TON development tools
 .PHONY: local-up
 local-up: ## Start local environment with TON sandbox
 	@echo "$(YELLOW)Starting local environment with TON sandbox...$(NC)"
-	@ENVIRONMENT=local $(COMPOSE) -f docker-compose.local.yml up -d
+	@ENVIRONMENT=local $(COMPOSE) -f docker/docker-compose.local.yml up
 	@sleep 5
 	@make local-init
 	@echo "$(GREEN)Local environment is running!$(NC)"
 	@echo "Backend: http://localhost:8001"
 	@echo "TON Sandbox: http://localhost:8082"
 
+.PHONY: local-build
+local-build: ## Start local environment with TON sandbox
+	@echo "$(YELLOW)Starting build local environment with TON sandbox...$(NC)"
+	@ENVIRONMENT=local $(COMPOSE) -f docker/docker-compose.local.yml build
+	@sleep 10
+	@echo "$(GREEN)Local environment was build"
+
+
 .PHONY: local-down
 local-down: ## Stop local environment
-	@ENVIRONMENT=local $(COMPOSE) -f docker-compose.local.yml down
+	@ENVIRONMENT=local $(COMPOSE) -f docker/docker-compose.local.yml down
 
 .PHONY: local-init
 local-init: ## Initialize local data and deploy test contracts
@@ -65,7 +73,7 @@ local-init: ## Initialize local data and deploy test contracts
 
 .PHONY: local-logs
 local-logs: ## Show local environment logs
-	@ENVIRONMENT=local $(COMPOSE) -f docker-compose.local.yml logs -f
+	@ENVIRONMENT=local $(COMPOSE) -f docker/docker-compose.local.yml logs -f
 
 .PHONY: local-test
 local-test: ## Run tests in local environment
@@ -77,12 +85,12 @@ local-test: ## Run tests in local environment
 .PHONY: dev-up
 dev-up: ## Start development environment with TON testnet
 	@echo "$(YELLOW)Starting dev environment with TON testnet...$(NC)"
-	@ENVIRONMENT=dev $(COMPOSE) -f docker-compose.dev.yml up -d
+	@ENVIRONMENT=dev $(COMPOSE) -f docker/docker-compose.dev.yml up -d
 	@echo "$(GREEN)Dev environment is running!$(NC)"
 
 .PHONY: dev-down
 dev-down: ## Stop development environment
-	@ENVIRONMENT=dev $(COMPOSE) -f docker-compose.dev.yml down
+	@ENVIRONMENT=dev $(COMPOSE) -f docker/docker-compose.dev.yml down
 
 .PHONY: dev-deploy-jetton
 dev-deploy-jetton: ## Deploy jetton to testnet
@@ -97,37 +105,37 @@ dev-get-tons: ## Get testnet TON from faucet
 
 .PHONY: dev-logs
 dev-logs: ## Show dev environment logs
-	@ENVIRONMENT=dev $(COMPOSE) -f docker-compose.dev.yml logs -f $(service)
+	@ENVIRONMENT=dev $(COMPOSE) -f docker/docker-compose.dev.yml logs -f $(service)
 
 .PHONY: dev-shell
 dev-shell: ## Open shell in dev backend container
-	@ENVIRONMENT=dev $(COMPOSE) -f docker-compose.dev.yml exec backend /bin/sh
+	@ENVIRONMENT=dev $(COMPOSE) -f docker/docker-compose.dev.yml exec backend /bin/sh
 
 # ============= STAGING =============
 
 .PHONY: staging-up
 staging-up: ## Start staging environment
 	@echo "$(YELLOW)Starting staging environment...$(NC)"
-	@ENVIRONMENT=staging $(COMPOSE) -f docker-compose.staging.yml up -d
+	@ENVIRONMENT=staging $(COMPOSE) -f docker/docker-compose.staging.yml up -d
 	@echo "$(GREEN)Staging environment is running!$(NC)"
 
 .PHONY: staging-down
 staging-down: ## Stop staging environment
-	@ENVIRONMENT=staging $(COMPOSE) -f docker-compose.staging.yml down
+	@ENVIRONMENT=staging $(COMPOSE) -f docker/docker-compose.staging.yml down
 
 .PHONY: staging-deploy
 staging-deploy: ## Deploy to staging
 	@echo "$(YELLOW)Deploying to staging...$(NC)"
 	@docker build -t $(DOCKER_REGISTRY)/mafia-backend:staging .
 	@docker push $(DOCKER_REGISTRY)/mafia-backend:staging
-	@ENVIRONMENT=staging $(COMPOSE) -f docker-compose.staging.yml pull
-	@ENVIRONMENT=staging $(COMPOSE) -f docker-compose.staging.yml up -d
+	@ENVIRONMENT=staging $(COMPOSE) -f docker/docker-compose.staging.yml pull
+	@ENVIRONMENT=staging $(COMPOSE) -f docker/docker-compose.staging.yml up -d
 	@echo "$(GREEN)Deployed to staging!$(NC)"
 
 .PHONY: staging-migrate
 staging-migrate: ## Run migrations on staging
 	@echo "$(YELLOW)Running staging migrations...$(NC)"
-	@ENVIRONMENT=staging $(COMPOSE) -f docker-compose.staging.yml exec backend alembic upgrade head
+	@ENVIRONMENT=staging $(COMPOSE) -f docker/docker-compose.staging.yml exec backend alembic upgrade head
 
 # ============= PRODUCTION =============
 
@@ -136,7 +144,7 @@ prod-deploy: prod-check ## Deploy to production (requires confirmation)
 	@echo "$(RED)⚠️  DEPLOYING TO PRODUCTION ⚠️$(NC)"
 	@read -p "Are you sure? Type 'yes' to continue: " confirm && [ "$$confirm" = "yes" ]
 	@echo "$(YELLOW)Building production images...$(NC)"
-	@docker build -t $(DOCKER_REGISTRY)/mafia-backend:$(VERSION) -f Dockerfile.prod .
+	@docker build -t $(DOCKER_REGISTRY)/mafia-backend:$(VERSION) -f docker/Dockerfile.prod .
 	@docker build -t $(DOCKER_REGISTRY)/mafia-voice:$(VERSION) -f voice-server/Dockerfile voice-server/
 	@echo "$(YELLOW)Pushing to registry...$(NC)"
 	@docker push $(DOCKER_REGISTRY)/mafia-backend:$(VERSION)
@@ -191,7 +199,7 @@ ton-balance: ## Check TON wallet balance
 .PHONY: ton-deploy-jetton
 ton-deploy-jetton: ## Deploy jetton contract
 	@echo "$(YELLOW)Deploying jetton for $(ENVIRONMENT)...$(NC)"
-	@ENVIRONMENT=$(ENVIRONMENT) $(PYTHON) scripts/deploy_jetton.py
+	@ENVIRONMENT=$(ENVIRONMENT) $(PYTHON) scripts/jetton/deploy_jetton.py
 
 .PHONY: ton-mint
 ton-mint: ## Mint tokens (dev/staging only)
@@ -201,7 +209,7 @@ ton-mint: ## Mint tokens (dev/staging only)
 	fi
 	@read -p "Amount to mint: " amount && \
 	read -p "Recipient address: " address && \
-	ENVIRONMENT=$(ENVIRONMENT) $(PYTHON) scripts/mint_tokens.py $$amount $$address
+	ENVIRONMENT=$(ENVIRONMENT) $(PYTHON) scripts/jetton/mint_tokens.py $$amount $$address
 
 # ============= MONITORING =============
 
@@ -245,7 +253,7 @@ test-integration: ## Run integration tests
 .PHONY: test-ton
 test-ton: ## Test TON integration
 	@echo "$(YELLOW)Testing TON integration for $(ENVIRONMENT)...$(NC)"
-	@ENVIRONMENT=$(ENVIRONMENT) $(PYTHON) scripts/test_ton.py
+	@ENVIRONMENT=$(ENVIRONMENT) $(PYTHON) scripts/jetton/test_ton.py
 
 .PHONY: test-load
 test-load: ## Run load tests
@@ -294,7 +302,7 @@ ci: lint test security ## Run CI pipeline locally
 .PHONY: build
 build: ## Build Docker images
 	@echo "$(YELLOW)Building images for $(ENVIRONMENT)...$(NC)"
-	@docker build -t mafia-backend:$(ENVIRONMENT) -f Dockerfile.$(ENVIRONMENT) .
+	@docker build -t mafia-backend:$(ENVIRONMENT) -f docker/Dockerfile.$(ENVIRONMENT) .
 	@docker build -t mafia-voice:$(ENVIRONMENT) -f voice-server/Dockerfile voice-server/
 	@echo "$(GREEN)Images built!$(NC)"
 

@@ -1,19 +1,20 @@
-version: '3.8'
+# docker-compose.local.yml
+# Fixed version with working TON local setup
 
 services:
-  # TON Sandbox for local blockchain testing
-  ton-sandbox:
-    image: tonwhales/sandbox:latest
+  # Option 1: Use ton-local-node (lighter alternative)
+  ton-local:
+    build:
+      context: ./ton-local
+      dockerfile: Dockerfile
     ports:
-      - "8081:8081"
-      - "8082:8082"  # Explorer
+      - "8081:8081"  # API port
+      - "8082:8082"  # Explorer port
     volumes:
-      - ./contracts:/contracts
-      - ton_sandbox_data:/data
+      - ton_local_data:/data
     environment:
       - VERBOSE=1
-      - ACCOUNTS_COUNT=10
-      - INITIAL_BALANCE=10000
+      - LITESERVER_PORT=43679
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/status"]
       interval: 10s
@@ -57,15 +58,16 @@ services:
 
   backend-local:
     build:
-      context: .
-      dockerfile: Dockerfile.dev
+      context: ..
+      dockerfile: docker/Dockerfile.dev
     environment:
       ENVIRONMENT: local
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres-local:5432/mafia_local
       REDIS_URL: redis://redis-local:6379/0
       RABBITMQ_URL: amqp://guest:guest@rabbitmq-local:5672
-      TON_ENDPOINT: http://ton-sandbox:8081
+      TON_ENDPOINT: http://ton-local:8081
       MOCK_BLOCKCHAIN_CALLS: "true"
+      PYTHONPATH: /app
     volumes:
       - .:/app
       - /app/__pycache__
@@ -79,10 +81,9 @@ services:
         condition: service_started
       rabbitmq-local:
         condition: service_started
-      ton-sandbox:
-        condition: service_healthy
     command: >
       sh -c "
+        pip install -e . &&
         alembic upgrade head &&
         python scripts/init_local_data.py &&
         uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -90,10 +91,15 @@ services:
 
   celery-local:
     build:
-      context: .
-      dockerfile: Dockerfile.dev
+      context: ..
+      dockerfile: docker/Dockerfile.dev
     environment:
       ENVIRONMENT: local
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres-local:5432/mafia_local
+      REDIS_URL: redis://redis-local:6379/0
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq-local:5672
+      MOCK_BLOCKCHAIN_CALLS: "true"
+      PYTHONPATH: /app
     volumes:
       - .:/app
     depends_on:
@@ -102,7 +108,7 @@ services:
     command: celery -A app.core.celery worker --loglevel=debug
 
 volumes:
-  ton_sandbox_data:
+  ton_local_data:
   postgres_local_data:
   redis_local_data:
   rabbitmq_local_data:
