@@ -1,6 +1,5 @@
 # app/domains/auth/models.py
-from sqlalchemy import (JSON, BigInteger, Boolean, DateTime, Float, Integer,
-                        String)
+from sqlalchemy import JSON, BigInteger, Boolean, DateTime, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.shared.database.mixins import TimestampMixin

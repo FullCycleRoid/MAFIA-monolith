@@ -5,11 +5,17 @@ from fastapi import FastAPI, WebSocket
 from starlette.middleware.cors import CORSMiddleware
 from starlette.websockets import WebSocketDisconnect
 
-from app.core import (celery, config, database, event_bus, exception_handlers,
-                      redis, websocket_manager)
+from app.core import (
+    celery,
+    config,
+    database,
+    event_bus,
+    exception_handlers,
+    redis,
+    websocket_manager,
+)
 from app.core.middleware import auth_middleware
-from app.domains import (auth, economy, game, matchmaking, moderation, social,
-                         voice)
+from app.domains import auth, economy, game, matchmaking, moderation, social, voice
 
 
 @asynccontextmanager
