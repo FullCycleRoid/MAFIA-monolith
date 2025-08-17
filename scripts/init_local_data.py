@@ -1,5 +1,4 @@
 """Initialize local development data"""
-import asyncio
 import sys
 from pathlib import Path
 

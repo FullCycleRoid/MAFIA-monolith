@@ -1,6 +1,6 @@
 import asyncio
 
-from jetton_scripts.deploy_testnet_jetton import main
+from scripts.jetton.deploy_testnet_jetton import main
 
 if __name__ == "__main__":
     # For deployment script
