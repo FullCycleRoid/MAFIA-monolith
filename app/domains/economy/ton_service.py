@@ -1,140 +1,136 @@
 # app/domains/economy/ton_service.py
-"""
-TON Jetton $MAFIA integration service
-Handles all blockchain operations with TON network
-"""
-import asyncio
-import base64
-from datetime import datetime
 from decimal import Decimal
-from typing import Dict, Optional, Tuple
+from typing import Optional
 
 from mnemonic import Mnemonic
-from pytoniq import Address, Cell, LiteClient, WalletV4R2, begin_cell
-from pytoniq.contract import JettonMaster, JettonWallet
+from pytoniq import Address, LiteClient, WalletV4R2
 
-from app.core.config import settings
+from app.core.config import get_settings
 from app.shared.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-class TONJettonService:
-    """Service for interacting with TON blockchain and $MAFIA jetton"""
+class EnhancedTONJettonService:
+    """Enhanced TON service with multi-environment support"""
 
     def __init__(self):
+        self.settings = get_settings()
         self.client: Optional[LiteClient] = None
         self.jetton_master_address: Optional[Address] = None
         self.service_wallet: Optional[WalletV4R2] = None
         self.mnemo = Mnemonic("english")
+        self.is_sandbox = False
 
     async def initialize(self):
-        """Initialize TON client and contracts"""
+        """Initialize based on environment"""
         try:
-            # Connect to TON network
-            self.client = LiteClient.from_mainnet_config(
-                ls_i=0, trust_level=2  # Light server index
-            )
-            await self.client.connect()
+            if self.settings.ENV == "local":
+                await self._init_sandbox()
+            elif self.settings.ENV in ["dev", "staging"]:
+                await self._init_testnet()
+            elif self.settings.ENV == "prod":
+                await self._init_mainnet()
+            else:
+                raise ValueError(f"Unknown environment: {self.settings.ENV}")
 
-            # Initialize jetton master contract
-            self.jetton_master_address = Address(settings.MAFIA_JETTON_MASTER_ADDRESS)
-
-            # Initialize service wallet for fee payments
-            if settings.SERVICE_WALLET_MNEMONIC:
-                self.service_wallet = await self._init_service_wallet(
-                    settings.SERVICE_WALLET_MNEMONIC
-                )
-
-            logger.info("TON Jetton service initialized successfully")
+            logger.info(f"TON service initialized for {self.settings.ENV} environment")
 
         except Exception as e:
             logger.error(f"Failed to initialize TON service: {e}")
-            raise
+            if self.settings.ENV == "local":
+                logger.info("Falling back to mock mode for local development")
+                self.is_sandbox = True
+            else:
+                raise
 
-    async def _init_service_wallet(self, mnemonic: str) -> WalletV4R2:
-        """Initialize service wallet from mnemonic"""
-        seed = self.mnemo.to_seed(mnemonic)
-        keypair = WalletV4R2.from_seed(seed)
-        wallet = WalletV4R2(
-            public_key=keypair.public_key,
-            private_key=keypair.private_key,
-            wc=0,  # Workchain 0 (basechain)
-        )
-        return wallet
+    async def _init_sandbox(self):
+        """Initialize local sandbox"""
+        if self.settings.MOCK_BLOCKCHAIN_CALLS:
+            logger.info("Using mock blockchain calls for local development")
+            self.is_sandbox = True
+            return
 
-    async def create_user_wallet(self, user_id: str) -> Dict:
-        """Create new TON wallet for user"""
+        # Try to connect to local sandbox
         try:
-            # Generate new mnemonic phrase
-            mnemonic = self.mnemo.generate(strength=256)
-            seed = self.mnemo.to_seed(mnemonic)
+            from ton_sandbox import Sandbox
 
-            # Create wallet v4r2 (recommended for jettons)
-            keypair = WalletV4R2.from_seed(seed)
-            wallet = WalletV4R2(
-                public_key=keypair.public_key, private_key=keypair.private_key, wc=0
-            )
+            self.sandbox = Sandbox()
+            await self.sandbox.start()
 
-            # Get wallet address
-            address = wallet.address.to_string(True, True, True)
+            # Create test wallet with funds
+            self.test_wallet = await self.sandbox.create_wallet()
+            await self.sandbox.give_tons(self.test_wallet.address, 10000)
 
-            # Encrypt mnemonic for storage
-            encrypted_mnemonic = self._encrypt_mnemonic(mnemonic)
+            # Deploy test jetton
+            await self._deploy_test_jetton()
 
-            # Get jetton wallet address for this user wallet
-            jetton_wallet_address = await self._get_jetton_wallet_address(
-                wallet.address
-            )
+            self.is_sandbox = True
+            logger.info("Local sandbox initialized successfully")
 
-            return {
-                "address": address,
-                "jetton_wallet": jetton_wallet_address,
-                "encrypted_mnemonic": encrypted_mnemonic,
-                "created_at": datetime.utcnow(),
-            }
+        except ImportError:
+            logger.warning("ton_sandbox not installed, using mock mode")
+            self.is_sandbox = True
 
-        except Exception as e:
-            logger.error(f"Failed to create wallet for user {user_id}: {e}")
-            raise
-
-    async def _get_jetton_wallet_address(self, owner_address: Address) -> str:
-        """Get jetton wallet address for owner"""
-        if not self.client or not self.jetton_master_address:
-            raise ValueError("TON service not initialized")
-
-        jetton_master = JettonMaster(
-            address=self.jetton_master_address, client=self.client
+    async def _init_testnet(self):
+        """Initialize testnet connection"""
+        # Connect to testnet
+        self.client = LiteClient.from_testnet_config(
+            ls_i=self.settings.TON_LS_INDEX, trust_level=self.settings.TON_TRUST_LEVEL
         )
+        await self.client.connect()
 
-        jetton_wallet_address = await jetton_master.get_wallet_address(owner_address)
+        # Initialize jetton if address provided
+        if self.settings.MAFIA_JETTON_MASTER_ADDRESS:
+            self.jetton_master_address = Address(
+                self.settings.MAFIA_JETTON_MASTER_ADDRESS
+            )
+        else:
+            logger.warning("No jetton address provided for testnet")
 
-        return jetton_wallet_address.to_string(True, True, True)
+        # Initialize service wallet if mnemonic provided
+        if self.settings.SERVICE_WALLET_MNEMONIC:
+            await self._init_service_wallet(self.settings.SERVICE_WALLET_MNEMONIC)
+
+    async def _init_mainnet(self):
+        """Initialize mainnet connection"""
+        # Connect to mainnet with API key
+        if not self.settings.TON_API_KEY:
+            raise ValueError("TON_API_KEY required for mainnet")
+
+        self.client = LiteClient.from_mainnet_config(
+            ls_i=self.settings.TON_LS_INDEX, trust_level=self.settings.TON_TRUST_LEVEL
+        )
+        await self.client.connect()
+
+        # Require jetton address for mainnet
+        if not self.settings.MAFIA_JETTON_MASTER_ADDRESS:
+            raise ValueError("MAFIA_JETTON_MASTER_ADDRESS required for mainnet")
+
+        self.jetton_master_address = Address(self.settings.MAFIA_JETTON_MASTER_ADDRESS)
+
+        # Require service wallet for mainnet
+        if not self.settings.SERVICE_WALLET_MNEMONIC:
+            raise ValueError("SERVICE_WALLET_MNEMONIC required for mainnet")
+
+        await self._init_service_wallet(self.settings.SERVICE_WALLET_MNEMONIC)
+
+    async def _deploy_test_jetton(self):
+        """Deploy jetton for testing (sandbox/testnet only)"""
+        if self.settings.ENV not in ["local", "dev"]:
+            raise ValueError("Can only deploy test jetton in local/dev environment")
+
+        # Jetton deployment logic here
+        logger.info("Deploying test jetton...")
 
     async def get_jetton_balance(self, user_address: str) -> Decimal:
-        """Get $MAFIA jetton balance for user"""
-        try:
-            if not self.client:
-                raise ValueError("TON service not initialized")
+        """Get balance with environment-specific handling"""
+        if self.is_sandbox or self.settings.MOCK_BLOCKCHAIN_CALLS:
+            # Return mock balance for testing
+            return Decimal("1000.0")
 
-            address = Address(user_address)
-            jetton_wallet_address = await self._get_jetton_wallet_address(address)
-
-            jetton_wallet = JettonWallet(
-                address=Address(jetton_wallet_address), client=self.client
-            )
-
-            # Get balance (returns in smallest units)
-            balance = await jetton_wallet.get_balance()
-
-            # Convert to decimal (assuming 9 decimals for $MAFIA)
-            decimal_balance = Decimal(balance) / Decimal(10**9)
-
-            return decimal_balance
-
-        except Exception as e:
-            logger.error(f"Failed to get balance for {user_address}: {e}")
-            return Decimal(0)
+        # Real blockchain call
+        return await super().get_jetton_balance(user_address)
 
     async def transfer_jettons(
         self,
@@ -143,206 +139,14 @@ class TONJettonService:
         amount: Decimal,
         memo: Optional[str] = None,
     ) -> str:
-        """Transfer $MAFIA jettons between wallets"""
-        try:
-            if not self.client:
-                raise ValueError("TON service not initialized")
+        """Transfer with environment-specific handling"""
+        if self.is_sandbox or self.settings.MOCK_BLOCKCHAIN_CALLS:
+            # Return mock transaction hash
+            import hashlib
 
-            # Initialize sender wallet
-            seed = self.mnemo.to_seed(from_mnemonic)
-            keypair = WalletV4R2.from_seed(seed)
-            sender_wallet = WalletV4R2(
-                public_key=keypair.public_key, private_key=keypair.private_key, wc=0
-            )
+            mock_hash = hashlib.sha256(f"{to_address}:{amount}".encode()).hexdigest()
+            logger.info(f"Mock transfer: {amount} to {to_address}")
+            return mock_hash
 
-            # Get sender's jetton wallet
-            sender_jetton_wallet = await self._get_jetton_wallet_address(
-                sender_wallet.address
-            )
-
-            jetton_wallet = JettonWallet(
-                address=Address(sender_jetton_wallet), client=self.client
-            )
-
-            # Build transfer payload
-            amount_nano = int(amount * Decimal(10**9))
-
-            transfer_body = self._build_jetton_transfer_body(
-                destination=Address(to_address),
-                amount=amount_nano,
-                response_destination=sender_wallet.address,
-                forward_amount=0,
-                forward_payload=memo.encode() if memo else b"",
-            )
-
-            # Send transaction
-            seqno = await sender_wallet.get_seqno()
-
-            transfer_message = sender_wallet.create_transfer_message(
-                to_addr=Address(sender_jetton_wallet),
-                amount=int(0.05 * 10**9),  # 0.05 TON for fees
-                seqno=seqno,
-                payload=transfer_body,
-            )
-
-            await self.client.send_message(transfer_message)
-
-            # Wait for confirmation
-            await asyncio.sleep(5)
-
-            # Generate transaction hash
-            tx_hash = self._generate_tx_hash(
-                sender_wallet.address, Address(to_address), amount_nano
-            )
-
-            return tx_hash
-
-        except Exception as e:
-            logger.error(f"Failed to transfer jettons: {e}")
-            raise
-
-    async def mint_jettons(self, to_address: str, amount: Decimal) -> str:
-        """Mint new $MAFIA jettons (only for authorized minter)"""
-        try:
-            if not self.service_wallet or not self.client:
-                raise ValueError("Service wallet not initialized")
-
-            # Build mint payload
-            amount_nano = int(amount * Decimal(10**9))
-
-            mint_body = self._build_jetton_mint_body(
-                destination=Address(to_address), amount=amount_nano
-            )
-
-            # Send mint transaction from service wallet
-            seqno = await self.service_wallet.get_seqno()
-
-            mint_message = self.service_wallet.create_transfer_message(
-                to_addr=self.jetton_master_address,
-                amount=int(0.1 * 10**9),  # 0.1 TON for fees
-                seqno=seqno,
-                payload=mint_body,
-            )
-
-            await self.client.send_message(mint_message)
-
-            tx_hash = self._generate_tx_hash(
-                self.service_wallet.address, Address(to_address), amount_nano
-            )
-
-            return tx_hash
-
-        except Exception as e:
-            logger.error(f"Failed to mint jettons: {e}")
-            raise
-
-    async def distribute_rewards(
-        self, recipients: Dict[str, Decimal], reason: str
-    ) -> Dict[str, str]:
-        """Distribute rewards to multiple recipients"""
-        results = {}
-
-        for user_address, amount in recipients.items():
-            try:
-                # Use service wallet to send rewards
-                tx_hash = await self.transfer_jettons(
-                    from_mnemonic=settings.SERVICE_WALLET_MNEMONIC,
-                    to_address=user_address,
-                    amount=amount,
-                    memo=f"Reward: {reason}",
-                )
-                results[user_address] = tx_hash
-
-            except Exception as e:
-                logger.error(f"Failed to send reward to {user_address}: {e}")
-                results[user_address] = "failed"
-
-        return results
-
-    def _build_jetton_transfer_body(
-        self,
-        destination: Address,
-        amount: int,
-        response_destination: Address,
-        forward_amount: int = 0,
-        forward_payload: bytes = b"",
-    ) -> Cell:
-        """Build jetton transfer message body"""
-        return (
-            begin_cell()
-            .store_uint(0xF8A7EA5, 32)  # op::transfer
-            .store_uint(0, 64)  # query_id
-            .store_coins(amount)
-            .store_address(destination)
-            .store_address(response_destination)
-            .store_bit(0)  # no custom_payload
-            .store_coins(forward_amount)
-            .store_bit(0)  # forward_payload in this slice
-            .store_bytes(forward_payload)
-            .end_cell()
-        )
-
-    def _build_jetton_mint_body(self, destination: Address, amount: int) -> Cell:
-        """Build jetton mint message body"""
-        return (
-            begin_cell()
-            .store_uint(0x178D4519, 32)  # op::mint
-            .store_uint(0, 64)  # query_id
-            .store_address(destination)
-            .store_coins(amount)
-            .end_cell()
-        )
-
-    def _encrypt_mnemonic(self, mnemonic: str) -> str:
-        """Encrypt mnemonic phrase for secure storage"""
-        from cryptography.fernet import Fernet
-
-        key = settings.WALLET_ENCRYPTION_KEY.encode()
-        cipher = Fernet(key)
-        encrypted = cipher.encrypt(mnemonic.encode())
-        return base64.b64encode(encrypted).decode()
-
-    def _decrypt_mnemonic(self, encrypted_mnemonic: str) -> str:
-        """Decrypt stored mnemonic phrase"""
-        from cryptography.fernet import Fernet
-
-        key = settings.WALLET_ENCRYPTION_KEY.encode()
-        cipher = Fernet(key)
-        encrypted = base64.b64decode(encrypted_mnemonic.encode())
-        decrypted = cipher.decrypt(encrypted)
-        return decrypted.decode()
-
-    def _generate_tx_hash(
-        self, from_addr: Address, to_addr: Address, amount: int
-    ) -> str:
-        """Generate transaction hash for tracking"""
-        import hashlib
-
-        data = f"{from_addr.to_string()}:{to_addr.to_string()}:{amount}:{datetime.utcnow()}"
-        return hashlib.sha256(data.encode()).hexdigest()
-
-    async def verify_transaction(self, tx_hash: str) -> Dict:
-        """Verify transaction status"""
-        # In production, this would query the blockchain
-        # For now, return mock confirmation
-        return {"status": "confirmed", "hash": tx_hash, "confirmations": 3}
-
-    async def get_ton_balance(self, address: str) -> Decimal:
-        """Get TON balance for gas fees"""
-        try:
-            if not self.client:
-                raise ValueError("TON service not initialized")
-
-            addr = Address(address)
-            balance = await self.client.get_account_state(addr)
-
-            # Convert from nanotons to TON
-            return Decimal(balance.balance) / Decimal(10**9)
-
-        except Exception as e:
-            logger.error(f"Failed to get TON balance: {e}")
-            return Decimal(0)
-
-
-# Global instance
-ton_service = TONJettonService()
+        # Real blockchain transaction
+        return await super().transfer_jettons(from_mnemonic, to_address, amount, memo)

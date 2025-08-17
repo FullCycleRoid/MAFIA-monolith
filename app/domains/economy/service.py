@@ -97,8 +97,7 @@ class EconomyService:
 
     async def add_tokens(self, user_id: str, amount: int, reason: str) -> bool:
         """Add tokens to user's off-chain balance"""
-        from app.domains.economy.repository import (get_wallet,
-                                                    update_offchain_balance)
+        from app.domains.economy.repository import get_wallet, update_offchain_balance
 
         wallet = await get_wallet(user_id)
         if not wallet:
@@ -125,8 +124,7 @@ class EconomyService:
 
     async def spend_tokens(self, user_id: str, amount: int, reason: str) -> bool:
         """Spend tokens from user's balance (prioritize off-chain)"""
-        from app.domains.economy.repository import (get_wallet,
-                                                    update_offchain_balance)
+        from app.domains.economy.repository import get_wallet, update_offchain_balance
 
         wallet = await get_wallet(user_id)
         if not wallet:
@@ -164,8 +162,7 @@ class EconomyService:
         if amount < self.min_withdrawal:
             raise ValueError(f"Minimum withdrawal is {self.min_withdrawal} MAFIA")
 
-        from app.domains.economy.repository import (get_wallet,
-                                                    update_offchain_balance)
+        from app.domains.economy.repository import get_wallet, update_offchain_balance
 
         wallet = await get_wallet(user_id)
         if not wallet or wallet.balance_offchain < amount:
@@ -307,8 +304,7 @@ class EconomyService:
 
     async def claim_daily_reward(self, user_id: str) -> bool:
         """Claim daily login reward"""
-        from app.domains.economy.repository import (get_wallet,
-                                                    update_last_claim)
+        from app.domains.economy.repository import get_wallet, update_last_claim
 
         wallet = await get_wallet(user_id)
         if not wallet:

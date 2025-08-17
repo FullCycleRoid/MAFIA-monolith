@@ -16,7 +16,7 @@
 ## Step 2: Environment Setup
 ```bash
 # Create .env file
-cp .env.example .env
+cp .env.dev.example .env
 
 # Edit .env with your values:
 - MAFIA_JETTON_MASTER_ADDRESS=<your-jetton-address>
@@ -46,7 +46,7 @@ docker-compose -f docker-compose.prod.yml up -d
 
 ## Step 5: Initialize Jetton
 ```python
-# scripts/init_jetton.py
+# scripts/init_local_data.py
 import asyncio
 from app.domains.economy.ton_service import ton_service
 

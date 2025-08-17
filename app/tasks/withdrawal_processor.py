@@ -1,6 +1,8 @@
 from app.core.celery import celery_app
-from app.domains.economy.repository import (get_pending_withdrawals,
-                                            update_withdrawal_status)
+from app.domains.economy.repository import (
+    get_pending_withdrawals,
+    update_withdrawal_status,
+)
 from app.domains.economy.ton_service import ton_service
 
 

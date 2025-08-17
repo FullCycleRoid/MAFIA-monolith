@@ -2,8 +2,13 @@
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
-from app.domains.social.entities import (Gift, GiftType, InteractionType,
-                                         SocialInteraction, UserSocialStats)
+from app.domains.social.entities import (
+    Gift,
+    GiftType,
+    InteractionType,
+    SocialInteraction,
+    UserSocialStats,
+)
 
 
 class SocialService:

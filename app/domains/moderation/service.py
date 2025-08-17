@@ -3,9 +3,14 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 from app.domains.game.repository import kick_player
-from app.domains.moderation.entities import (Ban, BanReason, BanType,
-                                             ModeratorAction, Restriction,
-                                             RestrictionType)
+from app.domains.moderation.entities import (
+    Ban,
+    BanReason,
+    BanType,
+    ModeratorAction,
+    Restriction,
+    RestrictionType,
+)
 from app.domains.voice.repository import disconnect_user
 
 

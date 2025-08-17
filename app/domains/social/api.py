@@ -3,8 +3,11 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.domains.auth.dependencies import get_current_user
 from app.domains.social.entities import GiftType
-from app.domains.social.schemas import (RateLinguisticRequest,
-                                        ReportPlayerRequest, SendGiftRequest)
+from app.domains.social.schemas import (
+    RateLinguisticRequest,
+    ReportPlayerRequest,
+    SendGiftRequest,
+)
 from app.domains.social.service import social_service
 
 router = APIRouter()

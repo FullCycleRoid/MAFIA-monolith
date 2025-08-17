@@ -5,9 +5,12 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.domains.auth.dependencies import get_current_user
 from app.domains.matchmaking.service import lobby_service
-from app.domains.matchmaking.use_cases import (create_private_lobby,
-                                               join_private_lobby, join_queue,
-                                               leave_queue)
+from app.domains.matchmaking.use_cases import (
+    create_private_lobby,
+    join_private_lobby,
+    join_queue,
+    leave_queue,
+)
 
 router = APIRouter()
 

@@ -1,8 +1,11 @@
 from datetime import datetime
 from typing import List
 
-from app.domains.matchmaking.service import (MatchmakingMode, QueuePlayer,
-                                             matchmaking_queue)
+from app.domains.matchmaking.service import (
+    MatchmakingMode,
+    QueuePlayer,
+    matchmaking_queue,
+)
 
 
 # API функции

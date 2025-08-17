@@ -1,0 +1,108 @@
+version: '3.8'
+
+services:
+  # TON Sandbox for local blockchain testing
+  ton-sandbox:
+    image: tonwhales/sandbox:latest
+    ports:
+      - "8081:8081"
+      - "8082:8082"  # Explorer
+    volumes:
+      - ./contracts:/contracts
+      - ton_sandbox_data:/data
+    environment:
+      - VERBOSE=1
+      - ACCOUNTS_COUNT=10
+      - INITIAL_BALANCE=10000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-local:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mafia_local
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_local_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis-local:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_local_data:/data
+
+  rabbitmq-local:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5673:5672"
+      - "15673:15672"  # Management UI
+    volumes:
+      - rabbitmq_local_data:/var/lib/rabbitmq
+
+  backend-local:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    environment:
+      ENVIRONMENT: local
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres-local:5432/mafia_local
+      REDIS_URL: redis://redis-local:6379/0
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq-local:5672
+      TON_ENDPOINT: http://ton-sandbox:8081
+      MOCK_BLOCKCHAIN_CALLS: "true"
+    volumes:
+      - .:/app
+      - /app/__pycache__
+      - /app/.pytest_cache
+    ports:
+      - "8001:8000"
+    depends_on:
+      postgres-local:
+        condition: service_healthy
+      redis-local:
+        condition: service_started
+      rabbitmq-local:
+        condition: service_started
+      ton-sandbox:
+        condition: service_healthy
+    command: >
+      sh -c "
+        alembic upgrade head &&
+        python scripts/init_local_data.py &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+
+  celery-local:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    environment:
+      ENVIRONMENT: local
+    volumes:
+      - .:/app
+    depends_on:
+      - redis-local
+      - rabbitmq-local
+    command: celery -A app.core.celery worker --loglevel=debug
+
+volumes:
+  ton_sandbox_data:
+  postgres_local_data:
+  redis_local_data:
+  rabbitmq_local_data:
