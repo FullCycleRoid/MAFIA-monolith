@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException
+
+from ...core.config import settings
 from .schemas import TelegramAuthData
 from .service import authenticate_telegram_user
 from .telegram_auth import verify_telegram_auth
-from ...core.config import settings
 
 router = APIRouter()
 

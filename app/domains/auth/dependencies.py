@@ -1,5 +1,7 @@
-from fastapi import HTTPException, Header
+from fastapi import Header, HTTPException
+
 from .service import validate_token
+
 
 async def get_current_user(authorization: str = Header(...)):
     if not authorization.startswith("Bearer "):

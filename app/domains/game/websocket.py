@@ -1,5 +1,7 @@
 import json
+
 from app.core import event_bus
+
 
 async def handle_websocket_message(game_id: str, message: str):
     try:

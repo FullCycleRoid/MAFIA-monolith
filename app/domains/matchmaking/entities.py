@@ -1,7 +1,7 @@
-from typing import List, Optional, Dict, Set
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from typing import Dict, List, Optional, Set
 
 
 class MatchmakingMode(str, Enum):
@@ -43,7 +43,9 @@ class PlayerProfile:
     purchased_languages: List[str] = field(default_factory=list)  # Купленные языки
     games_played: int = 0
     win_rate: float = 0.0
-    linguistic_rating: Dict[str, float] = field(default_factory=dict)  # Оценка по языкам
+    linguistic_rating: Dict[str, float] = field(
+        default_factory=dict
+    )  # Оценка по языкам
     is_premium: bool = False
     skin_id: Optional[str] = None
     banned_until: Optional[datetime] = None
