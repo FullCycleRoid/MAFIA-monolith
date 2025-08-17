@@ -118,6 +118,7 @@ async def websocket_game_endpoint(
 ):
     """Game WebSocket endpoint"""
     await websocket_manager.connect(websocket, game_id=game_id, user_id=user_id)
+
     try:
         while True:
             data = await websocket.receive_text()
