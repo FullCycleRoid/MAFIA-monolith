@@ -40,45 +40,65 @@ install-ton-tools: ## Install TON development tools
 	@npm install -g ton-compiler ton-contract-executor
 	@pip install pytoniq pytoniq-core tonsdk
 	@echo "$(GREEN)TON tools installed!$(NC)"
-
-# ============= LOCAL DEVELOPMENT =============
+# ============= LOCAL DEVELOPMENT (FIXED) =============
 
 .PHONY: local-up
 local-up: ## Start local environment with TON sandbox
 	@echo "$(YELLOW)Starting local environment with TON sandbox...$(NC)"
-	@ENVIRONMENT=local $(COMPOSE) -f docker/docker-compose.local.yml up
-	@sleep 5
-	@make local-init
+	@ENVIRONMENT=local $(COMPOSE) -f docker/docker-compose.local.yml up -d
+	@echo "$(GREEN)Waiting for services to be ready...$(NC)"
+	@sleep 10
 	@echo "$(GREEN)Local environment is running!$(NC)"
 	@echo "Backend: http://localhost:8001"
-	@echo "TON Sandbox: http://localhost:8082"
+	@echo "RabbitMQ Management: http://localhost:15673"
+	@echo "TON Mock API: http://localhost:8081"
 
 .PHONY: local-build
-local-build: ## Start local environment with TON sandbox
-	@echo "$(YELLOW)Starting build local environment with TON sandbox...$(NC)"
+local-build: ## Build local environment containers
+	@echo "$(YELLOW)Building local environment containers...$(NC)"
 	@ENVIRONMENT=local $(COMPOSE) -f docker/docker-compose.local.yml build
-	@sleep 10
-	@echo "$(GREEN)Local environment was build"
-
+	@echo "$(GREEN)Local environment was built$(NC)"
 
 .PHONY: local-down
 local-down: ## Stop local environment
 	@ENVIRONMENT=local $(COMPOSE) -f docker/docker-compose.local.yml down
 
-.PHONY: local-init
-local-init: ## Initialize local data and deploy test contracts
-	@echo "$(YELLOW)Initializing local data...$(NC)"
-	@ENVIRONMENT=local $(PYTHON) scripts/init_local_data.py
-	@echo "$(GREEN)Local data initialized!$(NC)"
-
 .PHONY: local-logs
 local-logs: ## Show local environment logs
 	@ENVIRONMENT=local $(COMPOSE) -f docker/docker-compose.local.yml logs -f
 
+.PHONY: local-logs-backend
+local-logs-backend: ## Show only backend logs
+	@ENVIRONMENT=local $(COMPOSE) -f docker/docker-compose.local.yml logs -f backend-local
+
+.PHONY: local-logs-celery
+local-logs-celery: ## Show only celery logs
+	@ENVIRONMENT=local $(COMPOSE) -f docker/docker-compose.local.yml logs -f celery-local
+
+.PHONY: local-ps
+local-ps: ## Show local environment container status
+	@ENVIRONMENT=local $(COMPOSE) -f docker/docker-compose.local.yml ps
+
+.PHONY: local-exec-backend
+local-exec-backend: ## Open shell in backend container
+	@ENVIRONMENT=local $(COMPOSE) -f docker/docker-compose.local.yml exec backend-local /bin/bash
+
+.PHONY: local-restart
+local-restart: ## Restart local environment
+	@make local-down
+	@make local-up
+
+.PHONY: local-clean
+local-clean: ## Clean local environment and volumes
+	@echo "$(RED)⚠️  This will delete all local data!$(NC)"
+	@read -p "Are you sure? Type 'yes' to continue: " confirm && [ "$$confirm" = "yes" ]
+	@ENVIRONMENT=local $(COMPOSE) -f docker/docker-compose.local.yml down -v
+	@echo "$(GREEN)Local environment cleaned!$(NC)"
+
 .PHONY: local-test
 local-test: ## Run tests in local environment
 	@echo "$(YELLOW)Running tests...$(NC)"
-	@ENVIRONMENT=local pytest tests/ -v --cov=app --cov-report=term-missing
+	@ENVIRONMENT=local $(COMPOSE) -f docker/docker-compose.local.yml exec backend-local pytest tests/ -v --cov=app --cov-report=term-missing
 
 # ============= DEVELOPMENT (TESTNET) =============
 

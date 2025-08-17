@@ -2,7 +2,7 @@
 # Fixed version with working TON local setup
 
 services:
-  # Option 1: Use ton-local-node (lighter alternative)
+  # TON Local Mock Server
   ton-local:
     build:
       context: ./ton-local
@@ -10,11 +10,6 @@ services:
     ports:
       - "8081:8081"  # API port
       - "8082:8082"  # Explorer port
-    volumes:
-      - ton_local_data:/data
-    environment:
-      - VERBOSE=1
-      - LITESERVER_PORT=43679
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/status"]
       interval: 10s
@@ -67,9 +62,12 @@ services:
       RABBITMQ_URL: amqp://guest:guest@rabbitmq-local:5672
       TON_ENDPOINT: http://ton-local:8081
       MOCK_BLOCKCHAIN_CALLS: "true"
+      JWT_SECRET: "local_secret_key_for_development_only"
+      JWT_ALG: "HS256"
+      TELEGRAM_BOT_TOKEN: "test_token"
       PYTHONPATH: /app
     volumes:
-      - .:/app
+      - ../..:/app
       - /app/__pycache__
       - /app/.pytest_cache
     ports:
@@ -81,9 +79,10 @@ services:
         condition: service_started
       rabbitmq-local:
         condition: service_started
+      ton-local:
+        condition: service_started
     command: >
       sh -c "
-        pip install -e . &&
         alembic upgrade head &&
         python scripts/init_local_data.py &&
         uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -99,16 +98,39 @@ services:
       REDIS_URL: redis://redis-local:6379/0
       RABBITMQ_URL: amqp://guest:guest@rabbitmq-local:5672
       MOCK_BLOCKCHAIN_CALLS: "true"
+      JWT_SECRET: "local_secret_key_for_development_only"
+      JWT_ALG: "HS256"
       PYTHONPATH: /app
     volumes:
-      - .:/app
+      - ../..:/app
     depends_on:
       - redis-local
       - rabbitmq-local
+      - postgres-local
     command: celery -A app.core.celery worker --loglevel=debug
 
+  celery-beat-local:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    environment:
+      ENVIRONMENT: local
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres-local:5432/mafia_local
+      REDIS_URL: redis://redis-local:6379/0
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq-local:5672
+      MOCK_BLOCKCHAIN_CALLS: "true"
+      JWT_SECRET: "local_secret_key_for_development_only"
+      JWT_ALG: "HS256"
+      PYTHONPATH: /app
+    volumes:
+      - ../..:/app
+    depends_on:
+      - redis-local
+      - rabbitmq-local
+      - postgres-local
+    command: celery -A app.core.celery beat --loglevel=debug
+
 volumes:
-  ton_local_data:
   postgres_local_data:
   redis_local_data:
   rabbitmq_local_data:

@@ -1,22 +1,13 @@
-FROM ubuntu:22.04
-
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    cmake \
-    git \
-    python3 \
-    python3-pip \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Node.js for mock server
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
-    apt-get install -y nodejs
+FROM node:18-slim
 
 WORKDIR /app
 
-# Create a simple mock TON API server
-COPY ton-mock-server.js /app/
+# Копируем package.json и устанавливаем зависимости
+COPY package.json ./
+RUN npm install
+
+# Копируем сервер
+COPY ton-mock-server.js ./
 
 EXPOSE 8081 8082
 
