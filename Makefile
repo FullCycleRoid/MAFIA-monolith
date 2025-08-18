@@ -45,7 +45,7 @@ install-ton-tools: ## Install TON development tools
 .PHONY: local-up
 local-up: ## Start local environment with TON sandbox
 	@echo "$(YELLOW)Starting local environment with TON sandbox...$(NC)"
-	@ENVIRONMENT=local $(COMPOSE) -f docker/docker-compose.local.yml up -d
+	@ENVIRONMENT=local $(COMPOSE) -f docker/docker-compose.local.yml up
 	@echo "$(GREEN)Waiting for services to be ready...$(NC)"
 	@sleep 10
 	@echo "$(GREEN)Local environment is running!$(NC)"

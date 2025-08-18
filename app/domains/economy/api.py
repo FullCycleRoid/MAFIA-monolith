@@ -5,6 +5,9 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field, validator
 
 from app.domains.auth.dependencies import get_current_user
+from app.domains.economy.repository import get_user_by_referral_code
+from app.domains.economy.schemas import CreateWalletResponse, BalanceResponse, WithdrawRequest, PurchaseRequest, \
+    SendGiftRequest, TransferRequest
 from app.domains.economy.service import economy_service
 from app.shared.utils.logger import get_logger
 
@@ -122,7 +125,6 @@ async def claim_daily_reward(user=Depends(get_current_user)):
 @router.post("/referral/{referral_code}")
 async def use_referral_code(referral_code: str, user=Depends(get_current_user)):
     """Use referral code for bonus tokens"""
-    from app.domains.auth.repository import get_user_by_referral_code
 
     referrer = await get_user_by_referral_code(referral_code)
     if not referrer:

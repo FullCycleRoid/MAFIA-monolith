@@ -19,7 +19,7 @@ class Environment(str, Enum):
 class Settings(BaseSettings):
     """Base settings class"""
     # Environment
-    ENV: str = Field(default="local", env="ENVIRONMENT")
+    ENVIRONMENT: Environment = Field(default="local", env="ENVIRONMENT")
 
     # Database
     DATABASE_URL: str = Field(
@@ -88,7 +88,7 @@ class Settings(BaseSettings):
 
 class LocalConfig(Settings):
     """Local development with TON sandbox"""
-    ENV: str = "local"
+    ENVIRONMENT: Environment = "local"
 
     # Override defaults for local
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@postgres-local:5432/mafia_local"
@@ -114,7 +114,7 @@ class LocalConfig(Settings):
 
 class DevConfig(Settings):
     """Development environment with TON testnet"""
-    ENV: str = "dev"
+    ENVIRONMENT: Environment = "dev"
 
     # TON Testnet
     TON_NETWORK: str = "testnet"
@@ -130,7 +130,7 @@ class DevConfig(Settings):
 
 class StagingConfig(Settings):
     """Staging environment - production-like with testnet"""
-    ENV: str = "staging"
+    ENVIRONMENT: Environment = "staging"
 
     # TON Testnet
     TON_NETWORK: str = "testnet"
@@ -148,7 +148,7 @@ class StagingConfig(Settings):
 
 class ProdConfig(Settings):
     """Production environment with TON mainnet"""
-    ENV: str = "prod"
+    ENVIRONMENT: Environment = "prod"
 
     # TON Mainnet
     TON_NETWORK: str = "mainnet"

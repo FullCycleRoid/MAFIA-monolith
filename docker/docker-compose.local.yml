@@ -67,7 +67,7 @@ services:
       TELEGRAM_BOT_TOKEN: "test_token"
       PYTHONPATH: /app
     volumes:
-      - ../..:/app
+      - ..:/app
       - /app/__pycache__
       - /app/.pytest_cache
     ports:
@@ -82,11 +82,11 @@ services:
       ton-local:
         condition: service_started
     command: >
-      sh -c "
-        alembic upgrade head &&
-        python scripts/init_local_data.py &&
-        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-      "
+        sh -c "
+          alembic upgrade head &&
+          python scripts/init_local_data.py &&
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+        "
 
   celery-local:
     build:
@@ -102,7 +102,7 @@ services:
       JWT_ALG: "HS256"
       PYTHONPATH: /app
     volumes:
-      - ../..:/app
+      - ..:/app
     depends_on:
       - redis-local
       - rabbitmq-local
@@ -123,7 +123,7 @@ services:
       JWT_ALG: "HS256"
       PYTHONPATH: /app
     volumes:
-      - ../..:/app
+      - ..:/app
     depends_on:
       - redis-local
       - rabbitmq-local

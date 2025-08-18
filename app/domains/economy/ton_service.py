@@ -25,20 +25,20 @@ class EnhancedTONJettonService:
     async def initialize(self):
         """Initialize based on environment"""
         try:
-            if self.settings.ENV == "local":
+            if self.settings.ENVIRONMENT == "local":
                 await self._init_sandbox()
-            elif self.settings.ENV in ["dev", "staging"]:
+            elif self.settings.ENVIRONMENT in ["dev", "staging"]:
                 await self._init_testnet()
-            elif self.settings.ENV == "prod":
+            elif self.settings.ENVIRONMENT == "prod":
                 await self._init_mainnet()
             else:
-                raise ValueError(f"Unknown environment: {self.settings.ENV}")
+                raise ValueError(f"Unknown environment: {self.settings.ENVIRONMENT}")
 
-            logger.info(f"TON service initialized for {self.settings.ENV} environment")
+            logger.info(f"TON service initialized for {self.settings.ENVIRONMENT} environment")
 
         except Exception as e:
             logger.error(f"Failed to initialize TON service: {e}")
-            if self.settings.ENV == "local":
+            if self.settings.ENVIRONMENT == "local":
                 logger.info("Falling back to mock mode for local development")
                 self.is_sandbox = True
             else:
@@ -117,7 +117,7 @@ class EnhancedTONJettonService:
 
     async def _deploy_test_jetton(self):
         """Deploy jetton for testing (sandbox/testnet only)"""
-        if self.settings.ENV not in ["local", "dev"]:
+        if self.settings.ENVIRONMENT not in ["local", "dev"]:
             raise ValueError("Can only deploy test jetton in local/dev environment")
 
         # Jetton deployment logic here

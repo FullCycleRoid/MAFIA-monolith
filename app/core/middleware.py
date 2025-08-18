@@ -8,8 +8,11 @@ from app.core.config import settings
 
 
 async def auth_middleware(request: Request, call_next):
-    # Разрешить публичные эндпоинты
     public_paths = ["/health", "/api/auth/telegram"]
+
+    if settings.ENVIRONMENT == "local":
+        public_paths.extend(["/docs", "/redoc", "/openapi.json"])
+
     if request.url.path in public_paths:
         return await call_next(request)
 

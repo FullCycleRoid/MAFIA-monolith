@@ -55,8 +55,8 @@ class Transaction(Base, TimestampMixin):
     block_number: Mapped[int] = mapped_column(Integer, nullable=True)
     confirmations: Mapped[int] = mapped_column(Integer, default=0)
 
-    # Additional metadata
-    metadata: Mapped[dict] = mapped_column(JSON, nullable=True)
+    # Additional metadata - renamed from 'metadata' to avoid SQLAlchemy reserved word
+    tx_metadata: Mapped[dict] = mapped_column(JSON, nullable=True)
     status: Mapped[str] = mapped_column(String, default="completed")
 
 

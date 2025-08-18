@@ -115,7 +115,7 @@ async def save_transaction(transaction_data: Dict) -> Transaction:
                 reason=transaction_data["reason"],
                 is_onchain=transaction_data.get("is_onchain", False),
                 tx_hash=transaction_data.get("tx_hash"),
-                metadata=transaction_data.get("metadata", {}),
+                tx_metadata=transaction_data.get("metadata", {}),  # Changed from 'metadata' to 'tx_metadata'
             )
             db.add(transaction)
 

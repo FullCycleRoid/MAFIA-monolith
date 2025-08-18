@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Dict, Optional
 
-from app.domains.economy.ton_service import ton_service
+from app.domains.economy.ton_service import EnhancedTONJettonService
 from app.shared.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -17,7 +17,7 @@ class EconomyService:
     """Main economy service handling both off-chain and on-chain operations"""
 
     def __init__(self):
-        self.ton = ton_service
+        self.ton = EnhancedTONJettonService()
         self.exchange_rate = Decimal("0.001")  # 1 MAFIA = $0.001 USD
         self.min_withdrawal = 100  # Minimum tokens for on-chain withdrawal
         self.rewards_config = {

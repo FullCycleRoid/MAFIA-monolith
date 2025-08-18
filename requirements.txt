@@ -9,6 +9,7 @@ pydantic-settings==2.1.0
 sqlalchemy==2.0.25
 alembic==1.13.1
 asyncpg==0.29.0
+psycopg2-binary==2.9.9  # Added for Alembic compatibility
 psycopg[binary]==3.1.17
 
 # TON Blockchain

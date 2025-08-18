@@ -16,6 +16,7 @@ from app.core import (
 )
 from app.core.middleware import auth_middleware
 from app.domains import auth, economy, game, matchmaking, moderation, social, voice
+from app.domains.economy import ton_service
 
 
 @asynccontextmanager
@@ -23,9 +24,6 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     # Startup
     print("Starting application...")
-
-    # Initialize database
-    await database.init_db()
 
     # Initialize Celery
     celery.init_celery()
@@ -37,8 +35,8 @@ async def lifespan(app: FastAPI):
     await economy.service.economy_service.initialize()
 
     # Register event handlers
-    await voice.register_event_handlers()
-    await economy.register_event_handlers()
+    voice.register_event_handlers()
+    economy.register_event_handlers()
 
     print("Application started successfully")
 
@@ -91,7 +89,6 @@ async def health():
 
     # Check TON connection
     try:
-        from app.domains.economy.ton_service import ton_service
 
         if ton_service.client:
             services["ton_blockchain"] = True

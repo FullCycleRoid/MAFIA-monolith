@@ -1,9 +1,12 @@
+from decimal import Decimal
+
 from app.core.celery import celery_app
+from app.core.config import settings
+from app.domains.economy import ton_service
 from app.domains.economy.repository import (
     get_pending_withdrawals,
     update_withdrawal_status,
 )
-from app.domains.economy.ton_service import ton_service
 
 
 @celery_app.task(bind=True, max_retries=3)

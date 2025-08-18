@@ -3,24 +3,85 @@ import asyncio
 import sys
 from pathlib import Path
 
-# Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from app.core.database import Base, engine
+from app.core.database import engine
 from app.shared.utils.logger import get_logger
+from alembic.config import Config
+from alembic import command
+from sqlalchemy import text
 
 logger = get_logger(__name__)
+
+
+async def check_and_run_migrations():
+    """Check if migrations need to be run and run them if necessary"""
+    async with engine.begin() as conn:
+        # Check if alembic_version table exists
+        result = await conn.execute(
+            text("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_name = 'alembic_version'
+                );
+            """)
+        )
+        alembic_exists = result.scalar()
+
+        # Check if skins_catalog table exists
+        result = await conn.execute(
+            text("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_name = 'skins_catalog'
+                );
+            """)
+        )
+        table_exists = result.scalar()
+
+        if not alembic_exists or not table_exists:
+            logger.info("Running database migrations...")
+            # Run migrations
+            alembic_cfg = Config("alembic.ini")
+            command.upgrade(alembic_cfg, "head")
+            logger.info("✅ Migrations completed")
+        else:
+            logger.info("Database schema is up to date")
+
+
+async def wait_for_table(table_name: str, max_attempts: int = 30):
+    """Wait for table to exist in database"""
+    from sqlalchemy import text
+
+    for attempt in range(max_attempts):
+        async with engine.begin() as conn:
+            result = await conn.execute(
+                text(f"""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables 
+                        WHERE table_name = '{table_name}'
+                    );
+                """)
+            )
+            if result.scalar():
+                logger.info(f"✅ Table {table_name} exists")
+                return True
+
+        logger.info(f"Waiting for table {table_name}... (attempt {attempt + 1}/{max_attempts})")
+        await asyncio.sleep(1)
+
+    raise Exception(f"Table {table_name} was not created after {max_attempts} attempts")
 
 
 async def init_local_data():
     """Initialize test data for local development"""
 
+    # Wait for critical tables to exist
+    await wait_for_table('skins_catalog')
+    await wait_for_table('auth_users')
+    await wait_for_table('economy_wallets')
+
     logger.info("Initializing local development data...")
-
-    # Create all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
     # Import models after tables are created
     from app.domains.auth.models import User
     from app.domains.economy.models import Wallet
@@ -90,6 +151,7 @@ async def init_local_data():
                     "image_url": "/assets/skins/classic.png",
                     "preview_url": "/assets/skins/classic_preview.png",
                     "rarity": "common",
+                    "is_limited": False,  # Add missing field
                 },
                 {
                     "id": "skin_golden",
@@ -99,6 +161,7 @@ async def init_local_data():
                     "image_url": "/assets/skins/golden.png",
                     "preview_url": "/assets/skins/golden_preview.png",
                     "rarity": "legendary",
+                    "is_limited": False,  # Add missing field
                 },
             ]
 
