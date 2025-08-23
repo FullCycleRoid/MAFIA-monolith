@@ -4,15 +4,14 @@ Enhanced WebSocket Manager with reconnection, heartbeat, and message queue
 """
 import asyncio
 import json
-import time
 from typing import Dict, List, Optional, Set
-from datetime import datetime, timedelta
+from datetime import datetime
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
 
 from fastapi import WebSocket
-from starlette.websockets import WebSocketState, WebSocketDisconnect
+from starlette.websockets import WebSocketState
 
 from app.core.event_bus import event_bus
 from app.shared.utils.logger import get_logger
@@ -61,27 +60,46 @@ class WebSocketManager:
     """Enhanced WebSocket manager with reliability features"""
 
     def __init__(self):
-        self.connections: Dict[str, List[WebSocket]] = {}  # game_id -> websockets
-        self.user_connections: Dict[str, List[WebSocket]] = {}  # user_id -> websockets
-        self.connection_info: Dict[WebSocket, ConnectionInfo] = {}  # websocket -> info
-        self.reconnect_tokens: Dict[str, ConnectionInfo] = {}  # token -> old connection info
-        self.message_buffer: Dict[str, List[QueuedMessage]] = defaultdict(list)  # user_id -> messages
+        self.connections: Dict[str, List[WebSocket]] = {}
+        self.user_connections: Dict[str, List[WebSocket]] = {}
+        self.connection_info: Dict[WebSocket, ConnectionInfo] = {}
+        self.reconnect_tokens: Dict[str, ConnectionInfo] = {}
+        self.message_buffer: Dict[str, List[QueuedMessage]] = defaultdict(list)
 
         # Configuration
-        self.ping_interval = 30  # seconds
-        self.pong_timeout = 10  # seconds
-        self.reconnect_timeout = 60  # seconds
-        self.max_message_size = 65536  # 64KB
+        self.ping_interval = 30
+        self.pong_timeout = 10
+        self.reconnect_timeout = 60
+        self.max_message_size = 65536
         self.max_queue_size = 100
 
-        # Start background tasks
-        self._start_background_tasks()
+        # <-- НОВОЕ: больше НЕ стартуем фоновые задачи в __init__
+        self._tasks: list[asyncio.Task] = []
+        self._started: bool = False
 
-    def _start_background_tasks(self):
-        """Start background maintenance tasks"""
-        asyncio.create_task(self._heartbeat_loop())
-        asyncio.create_task(self._cleanup_loop())
-        asyncio.create_task(self._process_queues_loop())
+    async def start(self):
+        """Start background maintenance tasks (must be called inside a running event loop)"""
+        if self._started:
+            return
+        loop = asyncio.get_running_loop()
+        self._tasks = [
+            loop.create_task(self._heartbeat_loop(), name="ws-heartbeat"),
+            loop.create_task(self._cleanup_loop(), name="ws-cleanup"),
+            loop.create_task(self._process_queues_loop(), name="ws-queues"),
+        ]
+        self._started = True
+        logger.info("WebSocketManager background tasks started")
+
+    async def stop(self):
+        """Stop background tasks gracefully"""
+        if not self._started:
+            return
+        for t in self._tasks:
+            t.cancel()
+        await asyncio.gather(*self._tasks, return_exceptions=True)
+        self._tasks.clear()
+        self._started = False
+        logger.info("WebSocketManager background tasks stopped")
 
     async def connect(
             self,
@@ -159,10 +177,14 @@ class WebSocketManager:
             return
 
         # Store for potential reconnection
-        if allow_reconnect and info.reconnect_token:
-            self.reconnect_tokens[info.reconnect_token] = info
-            # Schedule cleanup after timeout
-            asyncio.create_task(self._schedule_reconnect_cleanup(info.reconnect_token))
+        if allow_reconnect and info.reconnect_token and self._started:
+            try:
+                asyncio.get_running_loop().create_task(
+                    self._schedule_reconnect_cleanup(info.reconnect_token)
+                )
+            except RuntimeError:
+                # нет активного лупа — значит мы не в ASGI-рантайме; просто пропускаем
+                pass
 
         # Remove from game connections
         if info.game_id and info.game_id in self.connections:

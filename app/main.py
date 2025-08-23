@@ -12,8 +12,8 @@ from app.core import (
     event_bus,
     exception_handlers,
     redis,
-    websocket_manager,
 )
+from app.core.websocket_manager import websocket_manager
 from app.core.middleware import auth_middleware
 from app.domains import auth, economy, game, matchmaking, moderation, social, voice
 from app.domains.economy import ton_service
@@ -38,10 +38,13 @@ async def lifespan(app: FastAPI):
     voice.register_event_handlers()
     economy.register_event_handlers()
 
+    await websocket_manager.start()
+
     print("Application started successfully")
 
     yield
 
+    await websocket_manager.stop()
     # Shutdown
     print("Shutting down application...")
     # Clean up resources here
