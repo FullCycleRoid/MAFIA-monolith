@@ -1,7 +1,7 @@
 # app/domains/moderation/api.py
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.domains.auth.dependencies import get_current_user
@@ -38,16 +38,17 @@ async def submit_ban_appeal(request: AppealRequest, user=Depends(get_current_use
     return {"status": result}
 
 
-# Admin endpoints (требуют дополнительных прав)
 @router.post("/admin/ban")
 async def ban_user(request: BanUserRequest, user=Depends(get_current_user)):
-    """Забанить пользователя (только для модераторов)"""
-    # TODO: Проверить права модератора
+    # базовая проверка прав: ищем is_moderator / is_admin на модели пользователя
+    if not getattr(user, "is_moderator", False) and not getattr(user, "is_admin", False):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Moderator permission required")
+
     ban = await moderation_service.ban_user(
         user_id=request.user_id,
         duration_hours=request.duration_hours,
         reason=BanReason(request.reason),
-        issued_by=user["id"],
+        issued_by=user.id,             # <-- ORM-поле, не dict
         evidence=request.evidence,
     )
     return {"ban_id": ban.ban_id}

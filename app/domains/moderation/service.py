@@ -365,12 +365,13 @@ class ModerationService:
         )
 
     async def _kick_user_from_games(self, user_id: str):
-        """Выкинуть пользователя из активных игр"""
-
-        # Находим активные игры пользователя
+        """Выкинуть пользователя из активных игр и отключить от голосовых комнат"""
         await kick_player(user_id)
         await disconnect_user(user_id)
-        pass
+        # Мягкое уведомление пользователя (не ошибка, если не в сети)
+        from app.core.websocket_manager import websocket_manager
+        await websocket_manager.send_to_user(user_id, {"event": "kicked", "reason": "moderation_action"})
+
 
     async def _notify_user_ban(self, user_id: str, ban: Ban):
         """Уведомление пользователя о бане"""
@@ -387,9 +388,14 @@ class ModerationService:
         )
 
     async def _notify_moderators_appeal(self, user_id: str, ban: Ban, appeal_text: str):
-        """Уведомление модераторов об апелляции"""
-        # Здесь должна быть отправка в канал модераторов
-        pass
+        from app.core.event_bus import event_bus
+        await event_bus.publish("moderation:appeal_submitted", {
+            "user_id": user_id,
+            "ban_id": ban.ban_id,
+            "reason": ban.reason.value,
+            "appeal_text": appeal_text,
+            "issued_at": ban.issued_at.isoformat(),
+        })
 
     async def _log_moderator_action(
         self, moderator_id: str, action_type: str, target_user: str, details: Dict

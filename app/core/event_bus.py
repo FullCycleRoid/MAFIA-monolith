@@ -42,5 +42,6 @@ event_bus = EventBus()
 
 
 def init_event_bus():
-    # Инициализация шины событий
-    pass
+    event_bus.log.info("EventBus initialized")
+    return event_bus
+

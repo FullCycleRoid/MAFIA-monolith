@@ -4,7 +4,7 @@ Complete Game Service implementation with all missing methods
 """
 import asyncio
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from enum import Enum
 

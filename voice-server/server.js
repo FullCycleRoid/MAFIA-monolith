@@ -6,6 +6,7 @@ app.use(express.json());
 const workers = new Map();
 const rooms = new Map();
 
+
 // Инициализация mediasoup workers
 const initWorkers = async () => {
   for (let i = 0; i < 2; i++) {
@@ -18,6 +19,7 @@ const initWorkers = async () => {
     });
   }
 };
+
 
 // Создание комнаты
 app.post('/room', async (req, res) => {
@@ -41,27 +43,51 @@ app.post('/room', async (req, res) => {
   res.json({ room_id: game_id });
 });
 
-// Обработка команд
-app.post('/command', async (req, res) => {
+
+app.post('/command', (req, res) => {
   const { room_id, player_id, mute } = req.body;
   const room = rooms.get(room_id);
-
   if (!room) return res.status(404).send('Room not found');
 
   if (player_id === '*') {
-    for (const producer of room.players.values()) {
-      producer.pause(mute);
+    for (const [, producer] of room.players) {
+      mute ? producer.pause() : producer.resume();
     }
-  } else {
-    const producer = room.players.get(player_id);
-    if (producer) producer.pause(mute);
+    return res.status(200).send('OK');
   }
 
-  res.status(200).send('OK');
+  const producer = room.players.get(player_id);
+  if (producer) {
+    mute ? producer.pause() : producer.resume();
+    return res.status(200).send('OK');
+  }
+
+  return res.status(404).send('Player not found');
 });
 
-initWorkers().then(() => {
-  app.listen(4443, () => {
-    console.log('Mediasoup server listening on port 4443');
-  });
+// Добавляем пакетную версию
+app.post('/batch-command', (req, res) => {
+  const { room_id, commands } = req.body;
+  const room = rooms.get(room_id);
+  if (!room) return res.status(404).send('Room not found');
+
+  try {
+    for (const cmd of commands) {
+      const { player_id, mute } = cmd;
+      if (player_id === '*') {
+        for (const [, producer] of room.players) {
+          mute ? producer.pause() : producer.resume();
+        }
+      } else {
+        const producer = room.players.get(player_id);
+        if (producer) {
+          mute ? producer.pause() : producer.resume();
+        }
+      }
+    }
+    res.status(200).send('OK');
+  } catch (e) {
+    console.error('Batch command error', e);
+    res.status(500).send('Batch command error');
+  }
 });
