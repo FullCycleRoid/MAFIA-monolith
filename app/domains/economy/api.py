@@ -121,7 +121,7 @@ async def get_game_state(
     """Get current game state for player"""
     try:
         # Check if player is in game
-        player = await service.repository.get_player(game_id, user["id"])
+        player = await service.repository.get_player(game_id, user.id)
         if not player:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -129,7 +129,7 @@ async def get_game_state(
             )
 
         # Get game state
-        state = await service.game_service.get_game_state(game_id, user["id"])
+        state = await service.game_service.get_game_state(game_id, user.id)
         if not state:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -143,7 +143,7 @@ async def get_game_state(
             time_remaining = 30
 
         # Check if player can act
-        can_act = await _can_player_act(game_id, user["id"], state["phase"])
+        can_act = await _can_player_act(game_id, user.id, state["phase"])
 
         return GameStateResponse(
             game_id=game_id,
@@ -175,7 +175,7 @@ async def cast_vote(
     """Cast vote during day voting phase"""
     try:
         # Verify player is alive and in game
-        player = await service.repository.get_player(game_id, user["id"])
+        player = await service.repository.get_player(game_id, user.id)
         if not player or not player.alive:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -206,7 +206,7 @@ async def cast_vote(
         # Cast vote
         success = await service.game_service.cast_vote(
             voting_session,
-            user["id"],
+            user.id,
             request.target_id
         )
 
@@ -237,7 +237,7 @@ async def perform_night_action(
     """Perform night action"""
     try:
         # Verify player can perform action
-        player = await service.repository.get_player(game_id, user["id"])
+        player = await service.repository.get_player(game_id, user.id)
         if not player or not player.alive:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -269,7 +269,7 @@ async def perform_night_action(
         # Process action
         success = await service.game_service.process_night_action(
             game_id,
-            user["id"],
+            user.id,
             request.action,
             request.target_id
         )
@@ -299,7 +299,7 @@ async def advance_phase(
 ):
     """Force advance to next phase (admin/debug only)"""
     # Check admin privileges
-    if not user.get("is_admin", False):
+    if not getattr(user, "is_admin", False):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
@@ -325,7 +325,7 @@ async def get_game_players(
     """Get players in game"""
     try:
         # Check if user is in game
-        player = await service.repository.get_player(game_id, user["id"])
+        player = await service.repository.get_player(game_id, user.id)
         if not player:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -372,7 +372,7 @@ async def get_game_history(
     """Get game action history"""
     try:
         # Check if user was in game
-        player = await service.repository.get_player(game_id, user["id"])
+        player = await service.repository.get_player(game_id, user.id)
         if not player:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -461,7 +461,7 @@ async def get_active_games(
 async def get_my_active_game(user=Depends(get_current_user)):
     """Get user's active game if any"""
     try:
-        game_id = await service.repository.get_player_active_game(user["id"])
+        game_id = await service.repository.get_player_active_game(user.id)
 
         if not game_id:
             return {"active_game": None}
@@ -588,7 +588,7 @@ async def force_end_game(
         user=Depends(get_current_user)
 ):
     """Force end a game (admin only)"""
-    if not user.get("is_admin", False):
+    if not getattr(user, "is_admin", False):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"

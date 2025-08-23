@@ -33,7 +33,7 @@ async def get_user_moderation_status(user_id: str, user=Depends(get_current_user
 async def submit_ban_appeal(request: AppealRequest, user=Depends(get_current_user)):
     """Подать апелляцию на бан"""
     result = await moderation_service.appeal_ban(
-        user_id=user["id"], appeal_text=request.appeal_text
+        user_id=user.id, appeal_text=request.appeal_text
     )
     return {"status": result}
 
