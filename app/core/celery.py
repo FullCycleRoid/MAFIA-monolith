@@ -1,7 +1,9 @@
+# app/core/celery.py
 from celery import Celery
+from app.core.config import settings
+from celery.schedules import crontab
 
-from .config import settings
-
+# ВАЖНО: объект называется celery_app
 celery_app = Celery(
     "mafia_tasks",
     broker=settings.RABBITMQ_URL,
@@ -16,9 +18,7 @@ celery_app = Celery(
     ],
 )
 
-
 def init_celery():
-    # Конфигурация Celery
     celery_app.conf.update(
         task_serializer="json",
         accept_content=["json"],
@@ -31,7 +31,6 @@ def init_celery():
         task_track_started=True,
     )
 
-
 async def check_connection() -> bool:
     try:
         with celery_app.connection_or_acquire() as conn:
@@ -40,17 +39,14 @@ async def check_connection() -> bool:
     except Exception:
         return False
 
-
-from celery.schedules import crontab
-
 celery_app.conf.beat_schedule = {
     "process-withdrawals": {
         "task": "app.tasks.withdrawal_processor.process_pending_withdrawals",
-        "schedule": crontab(minute="*/5"),  # Every 5 minutes
+        "schedule": crontab(minute="*/5"),
     },
     "update-token-price": {
         "task": "app.tasks.price_updater.update_token_price",
-        "schedule": crontab(minute="*/15"),  # Every 15 minutes
+        "schedule": crontab(minute="*/15"),
     },
     "cleanup-old-games": {
         "task": "app.tasks.cleanup.cleanup_old_games_task",

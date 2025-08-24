@@ -1,12 +1,18 @@
+# app/core/config.py
 """
-Multi-environment configuration system for TON integration
+Multi-environment configuration with a single env directory (config/env).
+- Loads {ENV_DIR}/.env.{ENVIRONMENT} or fallback to {ENV_DIR}/.env
+- Ignores unknown keys from env-files (extra='ignore') so shared .env works
+- Tolerant CORS_ORIGINS parser: "*", CSV, or JSON array
 """
+
 import os
+import json
 from enum import Enum
 from typing import Optional, List
 
-from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Environment(str, Enum):
@@ -16,12 +22,38 @@ class Environment(str, Enum):
     PROD = "prod"
 
 
+def _compute_env_file() -> Optional[str]:
+    """
+    Pick env file based on ENVIRONMENT and ENV_DIR.
+    Order:
+      1) {ENV_DIR}/.env.{ENVIRONMENT}
+      2) {ENV_DIR}/.env
+    """
+    env = os.getenv("ENVIRONMENT", "local").lower()
+    env_dir = os.getenv("ENV_DIR", "config/env")
+    candidates = [
+        os.path.join(env_dir, f".env.{env}"),
+        os.path.join(env_dir, ".env"),
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return None
+
+
 class Settings(BaseSettings):
-    """Base settings class"""
+    # КРИТИЧНО: extra='ignore' — лишние ключи из общего .env не ломают валидацию.
+    # env_ignore_empty=True — пустые значения не ломают парсинг сложных полей.
+    model_config = SettingsConfigDict(
+        case_sensitive=True,
+        env_ignore_empty=True,
+        extra="ignore",
+    )
+
     # Environment
     ENVIRONMENT: Environment = Field(default="local", env="ENVIRONMENT")
 
-    # Database
+    # Database / brokers
     DATABASE_URL: str = Field(
         default="postgresql+asyncpg://postgres:postgres@localhost:5432/mafia_local"
     )
@@ -37,7 +69,7 @@ class Settings(BaseSettings):
     TON_USE_SANDBOX: bool = Field(default=False)
     TON_TEST_WALLET_SEED: Optional[str] = Field(default=None)
 
-    # Jetton settings
+    # Jetton
     MAFIA_JETTON_MASTER_ADDRESS: Optional[str] = Field(default=None)
     SERVICE_WALLET_MNEMONIC: Optional[str] = Field(default=None)
     SERVICE_WALLET_ADDRESS: Optional[str] = Field(default=None)
@@ -69,8 +101,8 @@ class Settings(BaseSettings):
     TELEGRAM_BOT_TOKEN: str = Field(default="test_token")
     TELEGRAM_WEBAPP_URL: Optional[str] = Field(default=None)
 
-    # CORS
-    CORS_ORIGINS: List[str] = Field(default=["*"])
+    # CORS — List[str]
+    CORS_ORIGINS: List[str] = Field(default_factory=lambda: ["*"])
 
     # Monitoring
     SENTRY_DSN: Optional[str] = Field(default=None)
@@ -80,109 +112,93 @@ class Settings(BaseSettings):
     MAX_REQUESTS_PER_MINUTE: int = Field(default=60)
     MAX_WITHDRAWALS_PER_DAY: int = Field(default=3)
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def _parse_cors_origins(cls, v):
+        """
+        Accept:
+          - "*"  -> ["*"]
+          - "http://a, http://b" -> ["http://a", "http://b"]
+          - '["http://a","http://b"]' (JSON) -> as-is
+        """
+        if v is None or v == "":
+            return ["*"]
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            s = v.strip()
+            if s == "*" or s == '"*"':
+                return ["*"]
+            if s.startswith("["):
+                try:
+                    parsed = json.loads(s)
+                    if isinstance(parsed, list):
+                        return parsed
+                except Exception:
+                    pass
+            return [x.strip() for x in s.split(",") if x.strip()]
+        return v
 
 
 class LocalConfig(Settings):
-    """Local development with TON sandbox"""
     ENVIRONMENT: Environment = "local"
 
-    # Override defaults for local
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@postgres-local:5432/mafia_local"
     REDIS_URL: str = "redis://redis-local:6379/0"
     RABBITMQ_URL: str = "amqp://guest:guest@rabbitmq-local:5672"
 
-    # TON Sandbox
     TON_NETWORK: str = "sandbox"
     TON_ENDPOINT: str = "http://ton-local:8081"
     TON_USE_SANDBOX: bool = True
     TON_TEST_WALLET_SEED: str = "test_seed_12345"
 
-    # Services
     MEDIASOUP_URL: str = "http://localhost:4443"
 
-    # Features
     AUTO_CREATE_WALLET: bool = True
     MOCK_BLOCKCHAIN_CALLS: bool = True
 
-    class Config:
-        env_file = ".env.local"
-
 
 class DevConfig(Settings):
-    """Development environment with TON testnet"""
     ENVIRONMENT: Environment = "dev"
-
-    # TON Testnet
     TON_NETWORK: str = "testnet"
     TON_ENDPOINT: str = "https://testnet.toncenter.com/api/v2/jsonRPC"
-
-    # Features
     AUTO_CREATE_WALLET: bool = True
     USE_TESTNET_FAUCET: bool = True
 
-    class Config:
-        env_file = ".env.dev"
-
 
 class StagingConfig(Settings):
-    """Staging environment - production-like with testnet"""
     ENVIRONMENT: Environment = "staging"
-
-    # TON Testnet
     TON_NETWORK: str = "testnet"
-
-    # Features
     AUTO_CREATE_WALLET: bool = False
     REQUIRE_KYC: bool = True
-
-    # Services
     MEDIASOUP_WORKERS: int = 10
-
-    class Config:
-        env_file = ".env.staging"
 
 
 class ProdConfig(Settings):
-    """Production environment with TON mainnet"""
     ENVIRONMENT: Environment = "prod"
-
-    # TON Mainnet
     TON_NETWORK: str = "mainnet"
     TON_ENDPOINT: str = "https://toncenter.com/api/v2/jsonRPC"
-
-    # Features
     AUTO_CREATE_WALLET: bool = False
     REQUIRE_KYC: bool = True
     REQUIRE_2FA: bool = True
     AUDIT_MODE: bool = True
-
-    # Services
     MEDIASOUP_WORKERS: int = 20
-
-    # Rate limiting
     MAX_REQUESTS_PER_MINUTE: int = 60
     MAX_WITHDRAWALS_PER_DAY: int = 3
 
-    class Config:
-        env_file = ".env.prod"
-
 
 def get_settings() -> Settings:
-    """Get settings based on environment"""
     env = os.getenv("ENVIRONMENT", "local").lower()
-
     configs = {
         "local": LocalConfig,
         "dev": DevConfig,
         "staging": StagingConfig,
         "prod": ProdConfig,
     }
-
     config_class = configs.get(env, LocalConfig)
+    env_file = _compute_env_file()
+    if env_file:
+        return config_class(_env_file=env_file, _env_file_encoding="utf-8")
     return config_class()
 
 

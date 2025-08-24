@@ -1,5 +1,5 @@
-# docker-compose.local.yml
-# Fixed version with working TON local setup
+# docker/docker-compose.local.yml
+# Local stack with centralized env files (config/env/.env.local)
 
 services:
   # TON Local Mock Server
@@ -18,16 +18,14 @@ services:
 
   postgres-local:
     image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: mafia_local
+    env_file:
+      - ../config/env/.env.local
     ports:
       - "5433:5432"
     volumes:
       - postgres_local_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -42,9 +40,8 @@ services:
 
   rabbitmq-local:
     image: rabbitmq:3-management-alpine
-    environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+    env_file:
+      - ../config/env/.env.local
     ports:
       - "5673:5672"
       - "15673:15672"  # Management UI
@@ -55,17 +52,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.dev
-    environment:
-      ENVIRONMENT: local
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres-local:5432/mafia_local
-      REDIS_URL: redis://redis-local:6379/0
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq-local:5672
-      TON_ENDPOINT: http://ton-local:8081
-      MOCK_BLOCKCHAIN_CALLS: "true"
-      JWT_SECRET: "local_secret_key_for_development_only"
-      JWT_ALG: "HS256"
-      TELEGRAM_BOT_TOKEN: "test_token"
-      PYTHONPATH: /app
+    env_file:
+      - ../config/env/.env.local
     volumes:
       - ..:/app
       - /app/__pycache__
@@ -82,53 +70,39 @@ services:
       ton-local:
         condition: service_started
     command: >
-        sh -c "
-          alembic upgrade head &&
-          python scripts/init_local_data.py &&
-          uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-        "
+      sh -c "
+        alembic upgrade head &&
+        python scripts/init_local_data.py &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
 
   celery-local:
     build:
       context: ..
       dockerfile: docker/Dockerfile.dev
-    environment:
-      ENVIRONMENT: local
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres-local:5432/mafia_local
-      REDIS_URL: redis://redis-local:6379/0
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq-local:5672
-      MOCK_BLOCKCHAIN_CALLS: "true"
-      JWT_SECRET: "local_secret_key_for_development_only"
-      JWT_ALG: "HS256"
-      PYTHONPATH: /app
+    env_file:
+      - ../config/env/.env.local
     volumes:
       - ..:/app
     depends_on:
       - redis-local
       - rabbitmq-local
       - postgres-local
-    command: celery -A app.core.celery worker --loglevel=debug
+    command: celery -A app.core.celery:celery_app worker --loglevel=debug
 
   celery-beat-local:
     build:
       context: ..
       dockerfile: docker/Dockerfile.dev
-    environment:
-      ENVIRONMENT: local
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres-local:5432/mafia_local
-      REDIS_URL: redis://redis-local:6379/0
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq-local:5672
-      MOCK_BLOCKCHAIN_CALLS: "true"
-      JWT_SECRET: "local_secret_key_for_development_only"
-      JWT_ALG: "HS256"
-      PYTHONPATH: /app
+    env_file:
+      - ../config/env/.env.local
     volumes:
       - ..:/app
     depends_on:
       - redis-local
       - rabbitmq-local
       - postgres-local
-    command: celery -A app.core.celery beat --loglevel=debug
+    command: celery -A app.core.celery:celery_app beat --loglevel=debug
 
 volumes:
   postgres_local_data:
