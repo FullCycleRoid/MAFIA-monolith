@@ -16,7 +16,7 @@ from app.core import (
 from app.core.websocket_manager import websocket_manager
 from app.core.middleware import auth_middleware
 from app.domains import auth, economy, game, matchmaking, moderation, social, voice
-from app.domains.economy import ton_service
+from app.domains.economy.ton_service import ton_service
 
 
 @asynccontextmanager

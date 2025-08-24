@@ -17,6 +17,7 @@ class Game(Base, TimestampMixin):
     started_at: Mapped[DateTime] = mapped_column(DateTime, nullable=True)
     ended_at: Mapped[DateTime] = mapped_column(DateTime, nullable=True)
     winner_team: Mapped[str] = mapped_column(String, nullable=True)  # mafia, citizens
+    main_winner_team: Mapped[str] = mapped_column(String, nullable=True)  # mafia, citizens
 
 
 class Player(Base, TimestampMixin):

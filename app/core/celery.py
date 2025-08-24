@@ -10,6 +10,9 @@ celery_app = Celery(
         "app.tasks.game_tasks",
         "app.tasks.voice_tasks",
         "app.tasks.economy_tasks",
+        "app.tasks.withdrawal_processor",
+        "app.tasks.cleanup",
+        "app.tasks.price_updater",
     ],
 )
 
@@ -50,7 +53,7 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(minute="*/15"),  # Every 15 minutes
     },
     "cleanup-old-games": {
-        "task": "app.tasks.cleanup.cleanup_old_games",
-        "schedule": crontab(hour=3, minute=0),  # Daily at 3 AM
+        "task": "app.tasks.cleanup.cleanup_old_games_task",
+        "schedule": crontab(hour=3, minute=0),
     },
 }

@@ -10,6 +10,7 @@ from app.shared.utils.logger import get_logger
 from alembic.config import Config
 from alembic import command
 from sqlalchemy import text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 logger = get_logger(__name__)
 
@@ -126,20 +127,27 @@ async def init_local_data():
             ]
 
             for user_data in test_users:
-                user = User(**user_data)
-                db.add(user)
-
-                # Create wallet for user
-                wallet = Wallet(
-                    id=f"wallet_{user_data['id']}",
-                    user_id=user_data['id'],
-                    ton_address=f"EQ_test_address_{user_data['id']}",
-                    jetton_wallet=f"EQ_test_jetton_{user_data['id']}",
-                    encrypted_mnemonic="mock_encrypted_mnemonic",
-                    balance_offchain=1000,
-                    balance_onchain=0,
+                await db.execute(
+                    pg_insert(User).values(**user_data)
+                    .on_conflict_do_nothing(index_elements=["id"])
                 )
-                db.add(wallet)
+
+                wallet_data = {
+                    "id": f"wallet_{user_data['id']}",
+                    "user_id": user_data["id"],
+                    "ton_address": f"EQ_test_address_{user_data['id']}",
+                    "jetton_wallet": f"EQ_test_jetton_{user_data['id']}",
+                    "encrypted_mnemonic": "mock_encrypted_mnemonic",
+                    "balance_offchain": 1000,
+                    "balance_onchain": 0,
+                }
+
+                await db.execute(
+                    pg_insert(Wallet).values(**wallet_data)
+                    .on_conflict_do_nothing(index_elements=["id"])
+                )
+
+            await db.commit()
 
             # Create test skins
             test_skins = [
@@ -166,8 +174,10 @@ async def init_local_data():
             ]
 
             for skin_data in test_skins:
-                skin = SkinCatalog(**skin_data)
-                db.add(skin)
+                await db.execute(
+                    pg_insert(SkinCatalog).values(**skin_data)
+                    .on_conflict_do_nothing(index_elements=["id"])
+                )
 
             await db.commit()
             logger.info("✅ Local data initialized successfully")

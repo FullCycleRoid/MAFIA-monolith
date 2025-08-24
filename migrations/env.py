@@ -1,40 +1,45 @@
-from logging.config import fileConfig
-from sqlalchemy import pool, text
-from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import create_async_engine
-from alembic import context
-import asyncio
-import sys
 import os
-import socket
+from logging.config import fileConfig
+from sqlalchemy import engine_from_config, pool
+from alembic import context
+import sys, pathlib
 
-sys.path.append(os.getcwd())
-from app.core.config import settings
-from app.domains.voice.models import *
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-# this is the Alembic Config object
+from app import Base
+
 config = context.config
-
-# Interpret the config file for Python logging
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# add your model's MetaData object here for 'autogenerate' support
 target_metadata = Base.metadata
 
-# # Определяем URL базы данных в зависимости от окружения
-# if socket.gethostname() in ['postgres-local', 'docker-postgres-local-1']:  # Замените на имя вашего хоста
-#     # Для локального запуска вне Docker
-# db_url = "postgresql+asyncpg://postgres:postgres@localhost:5433/mafia_local"
-# else:
-#     # Для запуска внутри Docker
-db_url = settings.DATABASE_URL
+db_url = os.environ.get("ALEMBIC_SYNC_DB_URL") or \
+         os.environ.get("DATABASE_URL") or \
+         config.get_main_option("sqlalchemy.url")
+
+if "+asyncpg" in db_url:
+    db_url = db_url.replace("+asyncpg", "+psycopg2")
 
 config.set_main_option("sqlalchemy.url", db_url)
-print(f"Using database URL: {db_url}")  # Добавьте для отладки
+config.compare_type = True
+config.compare_server_default = True
+
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode."""
+    """Run migrations in 'offline' mode.
+
+    This configures the context with just a URL
+    and not an Engine, though an Engine is acceptable
+    here as well.  By skipping the Engine creation
+    we don't even need a DBAPI to be available.
+
+    Calls to context.execute() here emit the given string to the
+    script output.
+
+    """
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -42,39 +47,37 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
-        compare_server_default=True,
+        compare_server_default=True
     )
+
     with context.begin_transaction():
         context.run_migrations()
 
-def do_run_migrations(connection: Connection) -> None:
-    context.configure(
-        connection=connection,
-        target_metadata=target_metadata,
-        compare_type=True,
-        compare_server_default=True,
-        include_schemas=True,
-    )
-    with context.begin_transaction():
-        context.run_migrations()
-
-async def run_async_migrations() -> None:
-    """Run migrations in 'online' mode using async engine."""
-    # Используем явное создание движка с таймаутом
-    connectable = create_async_engine(
-        config.get_main_option("sqlalchemy.url"),
-        poolclass=pool.NullPool,
-        connect_args={"timeout": 30}
-    )
-
-    async with connectable.connect() as connection:
-        await connection.execute(text("SET search_path TO public"))
-        await connection.run_sync(do_run_migrations)
-    await connectable.dispose()
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode."""
-    asyncio.run(run_async_migrations())
+    """Run migrations in 'online' mode.
+
+    In this scenario we need to create an Engine
+    and associate a connection with the context.
+
+    """
+    connectable = engine_from_config(
+        config.get_section(config.config_ini_section),
+        prefix="sqlalchemy.",
+        poolclass=pool.NullPool,
+    )
+
+    with connectable.connect() as connection:
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            compare_type=True,
+            compare_server_default=True
+        )
+
+        with context.begin_transaction():
+            context.run_migrations()
+
 
 if context.is_offline_mode():
     run_migrations_offline()
