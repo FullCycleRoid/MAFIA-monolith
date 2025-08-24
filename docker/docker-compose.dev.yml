@@ -1,137 +1,98 @@
-version: '3.8'
+version: "3.9"
 
+# Development (testnet) stack with centralized env files (config/env/.env.dev)
 services:
   postgres:
     image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      POSTGRES_DB: mafia_dev
+    env_file:
+      - ../config/env/.env.dev
     ports:
-      - "5432:5432"
+      - "5434:5432" # optional: подключение с хоста
     volumes:
       - postgres_dev_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    command: redis-server --save 60 1 --loglevel warning
-    ports:
-      - "6379:6379"
+    command: redis-server --appendonly yes
     volumes:
       - redis_dev_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
+    env_file:
+      - ../config/env/.env.dev
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "15672:15672" # Management UI
     volumes:
       - rabbitmq_dev_data:/var/lib/rabbitmq
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   backend:
     build:
-      context: .
-      dockerfile: Dockerfile.dev
+      context: ..
+      dockerfile: docker/Dockerfile.dev
     env_file:
-      - .env.dev
-    environment:
-      ENVIRONMENT: dev
-      TON_NETWORK: testnet
-      TON_ENDPOINT: https://testnet.toncenter.com/api/v2/jsonRPC
+      - ../config/env/.env.dev
     volumes:
-      - .:/app
+      - ..:/app
+      - /app/__pycache__
+      - /app/.pytest_cache
     ports:
-      - "8000:8000"
+      - "8002:8000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_healthy
+        condition: service_started
       rabbitmq:
-        condition: service_healthy
+        condition: service_started
     command: >
       sh -c "
         alembic upgrade head &&
-        python scripts/deploy_testnet_jetton.py &&
         uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
       "
 
-  celery_worker:
+  celery:
     build:
-      context: .
-      dockerfile: Dockerfile.dev
+      context: ..
+      dockerfile: docker/Dockerfile.dev
     env_file:
-      - .env.dev
-    environment:
-      ENVIRONMENT: dev
+      - ../config/env/.env.dev
     volumes:
-      - .:/app
+      - ..:/app
     depends_on:
-      - postgres
       - redis
       - rabbitmq
-    command: celery -A app.core.celery worker --loglevel=info
+      - postgres
+    command: celery -A app.core.celery:celery_app worker --loglevel=info
 
-  celery_beat:
+  celery-beat:
     build:
-      context: .
-      dockerfile: Dockerfile.dev
+      context: ..
+      dockerfile: docker/Dockerfile.dev
     env_file:
-      - .env.dev
-    environment:
-      ENVIRONMENT: dev
+      - ../config/env/.env.dev
     volumes:
-      - .:/app
+      - ..:/app
     depends_on:
+      - redis
+      - rabbitmq
       - postgres
-      - redis
-      - rabbitmq
-    command: celery -A app.core.celery beat --loglevel=info
+    command: celery -A app.core.celery:celery_app beat --loglevel=info
 
-  flower:
+  voice:
     build:
-      context: .
-      dockerfile: Dockerfile.dev
-    env_file:
-      - .env.dev
-    ports:
-      - "5555:5555"
-    depends_on:
-      - redis
-      - rabbitmq
-    command: celery -A app.core.celery flower
-
-  voice-server:
-    build:
-      context: ./voice-server
+      context: ../voice-server
       dockerfile: Dockerfile
-    environment:
-      MEDIASOUP_WORKERS: 2
-      NODE_ENV: development
+    env_file:
+      - ../config/env/.env.dev
     ports:
       - "4443:4443"
       - "30000-30010:30000-30010/udp"
-    volumes:
-      - ./voice-server:/app
-      - /app/node_modules
 
 volumes:
   postgres_dev_data:

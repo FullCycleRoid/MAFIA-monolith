@@ -1,185 +1,161 @@
-version: '3.8'
+version: "3.9"
+
+# Production (Swarm stack) with centralized env files (config/env/.env.prod)
+# Deploy with:
+#   ENVIRONMENT=prod VERSION=... docker stack deploy -c docker-compose.prod.yml mafia
+
+# Общие переменные для сервисов (env_file и т.п.)
+x-service-defaults: &svc_defaults
+  env_file:
+    - ./config/env/.env.prod
+
+# Общие defaults для deploy (policy и т.д.)
+x-deploy-defaults: &deploy_defaults
+  restart_policy:
+    condition: on-failure
+    delay: 5s
+    max_attempts: 3
+    window: 30s
 
 services:
   postgres:
     image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=en_US.utf8 --lc-ctype=en_US.utf8"
+    <<: *svc_defaults
     volumes:
       - postgres_prod_data:/var/lib/postgresql/data
-      - ./backup:/backup
-    restart: always
-    networks:
-      - mafia_prod
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
-      interval: 30s
-      timeout: 10s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
       retries: 5
     deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 4G
+      <<: *deploy_defaults
+      placement:
+        constraints: ["node.role == manager"]
 
   redis:
     image: redis:7-alpine
-    command: >
-      redis-server
-      --save 60 1000
-      --save 300 100
-      --save 3600 10
-      --loglevel warning
-      --maxmemory 1gb
-      --maxmemory-policy allkeys-lru
-      --requirepass ${REDIS_PASSWORD}
-      --appendonly yes
-      --appendfsync everysec
+    command: redis-server --appendonly yes
+    <<: *svc_defaults
     volumes:
       - redis_prod_data:/data
-    restart: always
-    networks:
-      - mafia_prod
     deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
+      <<: *deploy_defaults
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
-      RABBITMQ_DEFAULT_VHOST: mafia_prod
-      RABBITMQ_VM_MEMORY_HIGH_WATERMARK: 0.8
+    <<: *svc_defaults
     volumes:
       - rabbitmq_prod_data:/var/lib/rabbitmq
-    restart: always
-    networks:
-      - mafia_prod
+    ports:
+      - target: 15672
+        published: 15672
+        protocol: tcp
+        mode: ingress
     deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 2G
+      <<: *deploy_defaults
 
   backend:
-    image: ${DOCKER_REGISTRY}/mafia-backend:${VERSION:-latest}
-    env_file:
-      - .env.prod
-    environment:
-      ENVIRONMENT: prod
-      TON_NETWORK: mainnet
-    restart: always
-    networks:
-      - mafia_prod
+    image: ${DOCKER_REGISTRY:-your-registry.com}/mafia-backend:${VERSION:-latest}
+    <<: *svc_defaults
     depends_on:
       - postgres
       - redis
       - rabbitmq
-    deploy:
-      replicas: 4
-      update_config:
-        parallelism: 1
-        delay: 10s
-        order: start-first
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
-
-  celery_worker:
-    image: ${DOCKER_REGISTRY}/mafia-backend:${VERSION:-latest}
-    env_file:
-      - .env.prod
-    environment:
-      ENVIRONMENT: prod
-    restart: always
-    networks:
-      - mafia_prod
-    depends_on:
-      - postgres
-      - redis
-      - rabbitmq
-    command: celery -A app.core.celery worker --loglevel=warning --concurrency=8
-    deploy:
-      replicas: 3
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
-
-  celery_beat:
-    image: ${DOCKER_REGISTRY}/mafia-backend:${VERSION:-latest}
-    env_file:
-      - .env.prod
-    environment:
-      ENVIRONMENT: prod
-    restart: always
-    networks:
-      - mafia_prod
-    depends_on:
-      - postgres
-      - redis
-      - rabbitmq
-    command: celery -A app.core.celery beat --loglevel=warning
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-
-  nginx:
-    image: nginx:alpine
     ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/prod.conf:/etc/nginx/conf.d/default.conf
-      - ./nginx/ssl:/etc/nginx/ssl
-      - nginx_cache:/var/cache/nginx
-    restart: always
-    networks:
-      - mafia_prod
-    depends_on:
-      - backend
+      - target: 8000
+        published: 8000
+        protocol: tcp
+        mode: ingress
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     deploy:
+      <<: *deploy_defaults
       replicas: 2
       resources:
         limits:
-          cpus: '1'
-          memory: 512M
+          cpus: "1.00"
+          memory: 1024M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
 
-  voice-server:
-    image: ${DOCKER_REGISTRY}/mafia-voice:${VERSION:-latest}
-    environment:
-      MEDIASOUP_WORKERS: 10
-      NODE_ENV: production
-    restart: always
-    networks:
-      - mafia_prod
+  celery:
+    image: ${DOCKER_REGISTRY:-your-registry.com}/mafia-backend:${VERSION:-latest}
+    <<: *svc_defaults
+    depends_on:
+      - redis
+      - rabbitmq
+      - postgres
+    command: celery -A app.core.celery:celery_app worker --loglevel=info
     deploy:
-      replicas: 5
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
+      <<: *deploy_defaults
+      replicas: 2
 
-networks:
-  mafia_prod:
-    driver: overlay
-    attachable: true
+  celery-beat:
+    image: ${DOCKER_REGISTRY:-your-registry.com}/mafia-backend:${VERSION:-latest}
+    <<: *svc_defaults
+    depends_on:
+      - redis
+      - rabbitmq
+      - postgres
+    command: celery -A app.core.celery:celery_app beat --loglevel=info
+    deploy:
+      <<: *deploy_defaults
+      replicas: 1
+
+  voice:
+    image: ${DOCKER_REGISTRY:-your-registry.com}/mafia-voice:${VERSION:-latest}
+    <<: *svc_defaults
+    ports:
+      - target: 4443
+        published: 4443
+        protocol: tcp
+        mode: ingress
+      - target: 30000
+        published: 30000
+        protocol: udp
+        mode: ingress
+      - target: 30001
+        published: 30001
+        protocol: udp
+        mode: ingress
+      - target: 30002
+        published: 30002
+        protocol: udp
+        mode: ingress
+      - target: 30003
+        published: 30003
+        protocol: udp
+        mode: ingress
+      - target: 30004
+        published: 30004
+        protocol: udp
+        mode: ingress
+      - target: 30005
+        published: 30005
+        protocol: udp
+        mode: ingress
+      - target: 30006
+        published: 30006
+        protocol: udp
+        mode: ingress
+      - target: 30007
+        published: 30007
+        protocol: udp
+        mode: ingress
+      - target: 30008
+        published: 30008
+        protocol: udp
+        mode: ingress
+      - target: 30009
+        published: 30009
+        protocol: udp
+        mode: ingress
+    deploy:
+      <<: *deploy_defaults
+      replicas: 2
 
 volumes:
   postgres_prod_data:
-    driver: local
   redis_prod_data:
-    driver: local
   rabbitmq_prod_data:
-    driver: local
-  nginx_cache:
-    driver: local
