@@ -1,5 +1,5 @@
 from decimal import Decimal
-
+from asgiref.sync import async_to_sync
 from app.core.celery import celery_app
 from app.core.config import settings
 from app.domains.economy.ton_service import ton_service
@@ -8,15 +8,9 @@ from app.domains.economy.repository import (
     update_withdrawal_status,
 )
 
-
-@celery_app.task(bind=True, max_retries=3)
-def process_pending_withdrawals(self):
-    """Process pending withdrawal requests"""
-    import asyncio
-
-    async def process():
+def _process_sync():
+    async def _run():
         withdrawals = await get_pending_withdrawals()
-
         for withdrawal in withdrawals:
             try:
                 tx_hash = await ton_service.transfer_jettons(
@@ -25,15 +19,15 @@ def process_pending_withdrawals(self):
                     amount=Decimal(withdrawal.amount),
                     memo=f"Withdrawal {withdrawal.id}",
                 )
-
-                await update_withdrawal_status(
-                    withdrawal.id, "completed", tx_hash=tx_hash
-                )
-
+                await update_withdrawal_status(withdrawal.id, "completed", tx_hash=tx_hash)
             except Exception as e:
                 await update_withdrawal_status(withdrawal.id, "failed", error=str(e))
+                raise
+    async_to_sync(_run)()
 
-                # Retry
-                raise self.retry(exc=e, countdown=60)
-
-    asyncio.run(process())
+@celery_app.task(bind=True, max_retries=3)
+def process_pending_withdrawals(self):
+    try:
+        _process_sync()
+    except Exception as e:
+        raise self.retry(exc=e, countdown=60)
