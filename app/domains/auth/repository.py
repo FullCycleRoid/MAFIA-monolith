@@ -5,6 +5,10 @@ from sqlalchemy import select
 from app.core.database import get_db
 
 from .models import User
+from ...shared.utils.logger import get_logger
+
+
+logger = get_logger(__name__)
 
 
 async def get_user_by_telegram_id(telegram_id: int):
@@ -97,3 +101,30 @@ async def get_user_profile(user_id: str):
         banned_until=user.banned_until,
         muted_players=set(user.muted_players),
     )
+
+
+async def get_user_by_id(user_id: str):
+    """Get user by ID"""
+    from app.domains.auth.models import User
+
+    async with get_db() as db:
+        try:
+            result = await db.execute(select(User).filter(User.id == user_id))
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"Error getting user {user_id}: {e}")
+            return None
+
+async def get_user_by_referral_code(referral_code: str):
+    """Get user by referral code"""
+    from app.domains.auth.models import User
+
+    async with get_db() as db:
+        try:
+            result = await db.execute(
+                select(User).filter(User.referral_code == referral_code)
+            )
+            return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"Error getting user by referral {referral_code}: {e}")
+            return None

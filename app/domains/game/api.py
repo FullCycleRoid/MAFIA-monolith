@@ -5,8 +5,7 @@ Complete Game API with proper validation and error handling
 from typing import Optional, List
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query, status, Security
 from pydantic import BaseModel, Field, validator
 from starlette.websockets import WebSocketState
 
@@ -18,7 +17,9 @@ from app.shared.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter()
+router = APIRouter(
+    dependencies=[Security(get_current_user)]
+)
 
 
 # Request/Response Models
