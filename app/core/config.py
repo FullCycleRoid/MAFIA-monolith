@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     TON_USE_SANDBOX: bool = Field(default=False)
     TON_TEST_WALLET_SEED: Optional[str] = Field(default=None)
 
+    TOKEN_TICKER: str = Field(default="MAFIA")
+    MAFIA_PRICE_USD: float = Field(default=0.001)
+    TON_PRICE_USD: float | None = Field(default=None)
+
     # Jetton
     MAFIA_JETTON_MASTER_ADDRESS: Optional[str] = Field(default=None)
     SERVICE_WALLET_MNEMONIC: Optional[str] = Field(default=None)

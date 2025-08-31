@@ -14,13 +14,14 @@ from app.core.websocket_manager import websocket_manager
 from app.core.middleware import auth_middleware
 from app.domains import auth, economy, game, matchmaking, moderation, social, voice
 from app.domains.economy.ton_service import ton_service
+from app.domains.economy.service import economy_service
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     celery.init_celery()
     event_bus.init_event_bus()
-    await economy.service.economy_service.initialize()
+    await economy_service.initialize()
     voice.register_event_handlers()
     economy.register_event_handlers()
     await websocket_manager.start()
