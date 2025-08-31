@@ -13,7 +13,7 @@ def is_text_file(filepath):
 
 
 def gather_files(start_dir, exclude_dirs):
-    output_path = os.path.join(start_dir, "output.txt")
+    output_path = os.path.join(start_dir, "backend.txt")
     skipped = 0
     processed = 0
 
@@ -34,8 +34,8 @@ def gather_files(start_dir, exclude_dirs):
             for filename in files:
                 filepath = os.path.join(root, filename)
 
-                # Пропускаем скрытые файлы и output.txt
-                if filename.startswith(".") or filename.lower() == "output.txt":
+                # Пропускаем скрытые файлы и backend.txt
+                if filename.startswith(".") or filename.lower() == "backend.txt":
                     skipped += 1
                     continue
 
@@ -62,7 +62,7 @@ def gather_files(start_dir, exclude_dirs):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Собирает содержимое всех текстовых файлов в output.txt"
+        description="Собирает содержимое всех текстовых файлов в backend.txt"
     )
     parser.add_argument(
         "directory",
