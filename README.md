@@ -31,7 +31,7 @@ make dev-get-tons
 make dev-deploy-jetton
 
 # Проверка баланса
-make ton-balance ENVIRONMENT=dev
+make ton-balance ENVIRONMENT=devghj
 
 
 3. Staging (предпродакшн)
